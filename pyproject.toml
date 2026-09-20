@@ -1,0 +1,10 @@
+[project]
+name = "evoto"
+version = "0.1.0"
+description = "Sistema di voto elettronico verificabile per il progetto di Crittografia"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+python_files = ["test_*.py"]
