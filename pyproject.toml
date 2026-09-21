@@ -3,8 +3,15 @@ name = "evoto"
 version = "0.1.0"
 description = "Sistema di voto elettronico verificabile per il progetto di Crittografia"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "gmpy2>=2.3.1",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
 python_files = ["test_*.py"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
