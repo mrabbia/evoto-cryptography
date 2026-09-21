@@ -1,6 +1,6 @@
 # eVoto — Specifica tecnica condivisa F1
 
-**Versione:** 0.1  
+**Versione:** 0.2  
 **Progetto:** Voto elettronico verificabile per elezioni politiche  
 **Corso:** Crittografia — LM Sicurezza Informatica, Università degli Studi di Milano  
 **Componenti del gruppo:**
@@ -403,6 +403,10 @@ Nel progetto le prove saranno rese non interattive tramite Fiat-Shamir.
 
 Schnorr viene utilizzato in particolare durante la cerimonia delle chiavi.
 
+Nella cerimonia delle chiavi ogni garante allega una prova di Schnorr a ciascun impegno `K_i,j`.
+
+La forma esatta della challenge è fissata nella sezione 36.
+
 ---
 
 # 14. Chaum-Pedersen
@@ -425,21 +429,23 @@ log_g1(Y1) = log_g2(Y2)
 
 Una delle applicazioni fondamentali nel progetto riguarda le share di decifratura.
 
-Se un garante possiede il contributo segreto `s_i`:
+Se il garante `l` possiede la share aggregata `s_l` (sezione 23):
 
 ```text
-K_i = g^(s_i)
+V_l = g^(s_l)
 
-M_i = A^(s_i)
+M_l = A^(s_l)
 ```
 
 deve poter dimostrare:
 
 ```text
-log_g(K_i) = log_A(M_i)
+log_g(V_l) = log_A(M_l)
 ```
 
-senza rivelare `s_i`.
+senza rivelare `s_l`.
+
+Per questo la primitiva deve essere generica: le due basi `g1` e `g2` sono parametri qualsiasi del sottogruppo, non sempre la coppia `(g, K)` usata per i cifrati.
 
 La primitiva Chaum-Pedersen sarà implementata da Persona A in:
 
@@ -479,6 +485,8 @@ c = H(
 ```
 
 Ogni prova deve essere legata all'enunciato concreto che sta dimostrando.
+
+I contesti `Q` e `Q_bar` e gli input esatti di `H` per ogni prova sono fissati nelle sezioni 35 e 36.
 
 ---
 
@@ -544,6 +552,8 @@ verify_value_in_set(
 ```
 
 I nomi e i dettagli potranno essere affinati durante F2, ma il principio non deve cambiare senza accordo tra A e B.
+
+Il formato della challenge, compatibile con ElectionGuard nel caso 0/1 (T3), è fissato nella sezione 36.
 
 ---
 
@@ -667,6 +677,18 @@ s = Σ a_i,0 mod q
 
 ma non deve essere ricostruito o conservato in un singolo punto durante l'esecuzione normale.
 
+Convenzioni fissate nella versione 0.2:
+
+- i garanti sono numerati `1, 2, ..., n`; l'indice `0` non viene mai usato, perché `P_i(0) = a_i,0` è il segreto;
+- nel codice la soglia `k` si chiama `quorum`, per non confonderla con il `k` della prova OR e con la chiave `K`;
+- deve valere `1 <= quorum <= n`;
+- i coefficienti `a_i,j` sono scelti uniformemente in `Z_q` con il modulo `secrets`;
+- per i test i coefficienti devono poter essere passati esplicitamente, come il `nonce` di `encrypt` (sezione 11);
+- `P_i(l)` viene calcolato modulo `q` con lo schema di Horner;
+- le share `P_i(l)` sono private: non vanno mai nel registro pubblico.
+
+Nel progetto i garanti sono simulati in un unico programma, quindi le share passano in memoria. In un sistema reale viaggerebbero su un canale cifrato e autenticato: la semplificazione va dichiarata nella tesina.
+
 ---
 
 # 19. Impegni di Feldman
@@ -692,6 +714,18 @@ g^(P_i(l))
 ```
 
 Questo permette di controllare la coerenza della share con il polinomio dichiarato.
+
+Ogni impegno `K_i,j` è accompagnato da una prova di Schnorr che dimostra la conoscenza di `a_i,j` (sezione 36).
+
+Il garante `l` accetta la share `P_i(l)` solo se:
+
+- ogni `K_i,j` appartiene al sottogruppo di ordine `q`;
+- ogni prova di Schnorr del garante `i` è valida;
+- vale l'uguaglianza di Feldman scritta sopra.
+
+Se un controllo fallisce, la cerimonia si interrompe con un `ValueError` che indica il garante `i`.
+
+Non implementiamo una fase di reclamo: anche questa semplificazione va dichiarata nella tesina.
 
 Persona B implementerà questa logica in:
 
@@ -729,6 +763,10 @@ evoto/elgamal.py
 
 senza conversioni o rappresentazioni alternative.
 
+Decisione v0.2: la chiave pubblica è un semplice `int`.
+
+Oltre a `K`, al termine della cerimonia ogni garante ottiene la propria share aggregata `s_l` (sezione 23).
+
 ---
 
 # 21. Lagrange
@@ -752,6 +790,16 @@ j ≠ i
 Le divisioni devono essere implementate tramite inverso modulare modulo `q`.
 
 La funzione per il calcolo dei coefficienti deve essere isolata e direttamente testabile.
+
+Nel progetto `S` è l'insieme dei garanti presenti alla decifratura, con `|S| >= quorum`.
+
+La funzione sarà definita in:
+
+```text
+evoto/decifratura.py
+```
+
+e controlla che gli indici di `S` siano positivi e distinti e che `i` appartenga a `S`.
 
 ---
 
@@ -785,25 +833,79 @@ Il risultato è quindi un tally cifrato.
 
 # 23. Decifratura del tally
 
-Dato:
+Decisione v0.2: il progetto usa il modello a **share aggregate**, lo stesso dell'esempio numerico della proposta di progetto.
+
+Il modello di ElectionGuard, con share compensate per i garanti assenti, non viene implementato: la differenza va dichiarata nel capitolo 6 della tesina.
+
+## Share aggregata di ogni garante
+
+Al termine della cerimonia il garante `l` somma le share ricevute da tutti i garanti, compresa la propria:
+
+```text
+s_l = Σ_i P_i(l) mod q
+```
+
+Se chiamiamo:
+
+```text
+S(x) = Σ_i P_i(x) mod q
+```
+
+allora `S` ha grado `k - 1`, `S(0) = s` e `s_l = S(l)`.
+
+Quindi `s_l` è una share di Shamir del segreto globale `s`, senza che nessuno abbia mai conosciuto `s`.
+
+La chiave di verifica del garante `l` è:
+
+```text
+V_l = g^(s_l) = ∏_i ∏_j K_i,j^(l^j) mod p
+```
+
+Chiunque può calcolarla dagli impegni pubblici di Feldman.
+
+## Share di decifratura
+
+Dato il tally cifrato:
 
 ```text
 (A, B)
 ```
 
-ogni garante produce il proprio contributo di decifratura.
-
-Concettualmente:
+e l'insieme `S` dei garanti presenti, con `|S| >= quorum`, ogni garante `l ∈ S` pubblica:
 
 ```text
-M_i = A^(s_i)
+M_l = A^(s_l) mod p
 ```
 
-accompagnato da una prova Chaum-Pedersen.
+accompagnato da una prova Chaum-Pedersen che dimostra:
 
-Le share valide vengono combinate secondo il protocollo a soglia.
+```text
+log_g(V_l) = log_A(M_l)
+```
 
-Alla fine si ottiene:
+## Combinazione delle share
+
+Chiunque calcola i coefficienti di Lagrange `λ_l` su `S` (sezione 21) e:
+
+```text
+M = ∏_{l ∈ S} M_l^(λ_l) mod p
+```
+
+Poiché:
+
+```text
+Σ_{l ∈ S} λ_l · s_l = S(0) = s mod q
+```
+
+si ottiene:
+
+```text
+M = A^s = K^R
+```
+
+dove `R` è la somma delle randomness delle schede aggregate.
+
+Infine:
 
 ```text
 B / M = g^t
@@ -816,6 +918,22 @@ t = totale dei voti
 ```
 
 Il valore ottenuto non è direttamente `t`, ma `g^t`.
+
+## Garanti assenti
+
+Un garante assente semplicemente non compare in `S`: bastano `quorum` garanti qualsiasi e il risultato non cambia.
+
+Se i garanti presenti sono meno di `quorum`, la decifratura si interrompe con un `ValueError`.
+
+## Controlli del verificatore (V6 e V7)
+
+Il verificatore ricalcola dal registro:
+
+- `V_l` di ogni garante presente, a partire dagli impegni di Feldman;
+- la validità di ogni prova Chaum-Pedersen;
+- l'appartenenza al sottogruppo di ogni `M_l`;
+- i coefficienti `λ_l` e il valore `M`;
+- l'uguaglianza `B / M = g^t` con il totale pubblicato.
 
 ---
 
@@ -949,6 +1067,10 @@ deve permettere di confrontare i nostri ciphertext con quelli di ElectionGuard.
 
 La nostra funzione `H` deve essere confrontabile sugli stessi input con la convenzione ElectionGuard scelta dal progetto.
 
+Attenzione: `hash_elems` di ElectionGuard 1.4 serializza in esadecimale solo `ElementModP` ed `ElementModQ`; gli `int` Python vengono serializzati in decimale.
+
+Nel test incrociato gli interi vanno quindi passati a ElectionGuard come `ElementModP` o `ElementModQ`.
+
 ---
 
 ## T3 — Prove 0/1
@@ -989,16 +1111,51 @@ class Ciphertext:
     beta: int
 ```
 
-Tipi previsti, i cui campi verranno fissati durante l'implementazione:
+Decisione v0.2: la chiave pubblica è un semplice `int` (sezione 20), quindi il tipo `PublicKey` non viene creato.
 
-```text
-PublicKey
-SchnorrProof
-ChaumPedersenProof
-ValueSetProof
-Guardian
-DecryptionShare
+Tipi proposti nella versione 0.2, con campi da confermare nella review:
+
+```python
+# evoto/prove.py (Persona A)
+
+@dataclass(frozen=True)
+class SchnorrProof:
+    commitment: int      # h = g^u
+    challenge: int       # c
+    response: int        # z = u + c·x mod q
+
+
+@dataclass(frozen=True)
+class ChaumPedersenProof:
+    commitment_1: int    # a = g1^u
+    commitment_2: int    # b = g2^u
+    challenge: int       # c
+    response: int        # z = u + c·x mod q
+
+
+# evoto/garanti.py (Persona B)
+
+@dataclass(frozen=True)
+class GuardianRecord:
+    index: int                          # l, da 1 a n
+    commitments: tuple[int, ...]        # K_l,0 ... K_l,k-1
+    proofs: tuple[SchnorrProof, ...]    # una prova per impegno
+
+
+# evoto/decifratura.py (Persona B)
+
+@dataclass(frozen=True)
+class DecryptionShare:
+    guardian_index: int                 # l
+    partial_decryption: int             # M_l = A^(s_l)
+    proof: ChaumPedersenProof
 ```
+
+`GuardianRecord` e `DecryptionShare` contengono solo dati pubblici e finiscono nel registro.
+
+Il tipo `Guardian`, che contiene coefficienti, share ricevute e share aggregata, è privato del garante: la sua struttura interna è libera e non viene mai pubblicata.
+
+Resta previsto `ValueSetProof` per la prova OR (Persona A).
 
 Quando uno di questi tipi diventa dipendenza tra Persona A e Persona B, la sua struttura deve essere concordata prima del merge.
 
@@ -1215,18 +1372,14 @@ Dopo il completamento di F1:
 
 ## Persona A
 
-inizia F2 con:
+`feature/group-parameters` (`evoto/gruppo.py`) è completato.
+
+Ordine proposto per il resto di F2, in modo che Persona B possa proseguire F3:
 
 ```text
-feature/group-parameters
-```
-
-e successivamente:
-
-```text
-evoto/gruppo.py
-evoto/elgamal.py
-evoto/prove.py
+1. evoto/elgamal.py    Ciphertext, encrypt, operazioni omomorfiche, logaritmo discreto
+2. evoto/prove.py      Schnorr e Chaum-Pedersen generico
+3. evoto/prove.py      prova OR generica
 ```
 
 con relativi test T1-T3.
@@ -1252,6 +1405,10 @@ decifratura a soglia
 
 Persona B deve utilizzare le interfacce condivise implementate dalla Persona A e non duplicarle.
 
+Le parti che dipendono solo da `gruppo.py` (polinomi, impegni di Feldman, share aggregate, coefficienti di Lagrange) possono partire subito.
+
+Prove di Schnorr, share di decifratura e test del referendum seguono il merge di `elgamal.py` e `prove.py`.
+
 Obiettivo congiunto di F2 + F3:
 
 ```text
@@ -1259,3 +1416,261 @@ referendum sì/no end-to-end
 ```
 
 realizzato interamente con la nostra libreria e verificato tramite test.
+
+---
+
+# 35. Contesti di hash Q e Q_bar
+
+Decisione v0.2.
+
+Ogni prova viene legata all'elezione tramite due valori di contesto.
+
+## Hash di base Q
+
+Serve durante la cerimonia delle chiavi, quando la chiave congiunta non esiste ancora:
+
+```text
+Q = H(p, q, g, n, k, e)
+```
+
+dove:
+
+```text
+n = numero di garanti
+k = quorum
+e = identificativo intero dell'elezione
+```
+
+Nei test si usa `e = 1`.
+
+Quando esisterà `config/elezione_esempio.json`, `e` sarà l'hash della configurazione, con una funzione da fissare insieme a `registro.py`.
+
+## Hash esteso Q_bar
+
+Serve dopo la cerimonia, per le prove delle schede e per le prove di decifratura:
+
+```text
+Q_bar = H(Q, K)
+```
+
+Entrambi i valori sono calcolati da funzioni definite in:
+
+```text
+evoto/garanti.py
+```
+
+Le altre funzioni ricevono `Q` o `Q_bar` come parametro `context`, senza ricalcolarli.
+
+---
+
+# 36. Fiat-Shamir: input esatti di H per ogni prova
+
+Decisione v0.2.
+
+Il verificatore non importa `evoto`, quindi questa sezione è l'unico accordo tra chi produce le prove e chi le controlla.
+
+Regola generale: nella challenge entrano, in quest'ordine,
+
+1. il contesto (`Q` oppure `Q_bar`) e gli indici che identificano la prova;
+2. tutte le basi e tutti i valori pubblici dell'enunciato;
+3. gli impegni della prova.
+
+| Prova | Enunciato | Challenge |
+|---|---|---|
+| Schnorr sull'impegno `K_i,j` | conosco `a_i,j` con `K_i,j = g^(a_i,j)` | `c = H(Q, i, j, g, K_i,j, h)` |
+| Chaum-Pedersen della share di decifratura | `log_g(V_l) = log_A(M_l)` | `c = H(Q_bar, l, g, V_l, A, M_l, a, b)` |
+| Prova OR su `{0, ..., k}` (R1, R3, R4, R5) | `(alpha, beta)` cifra un valore in `{0, ..., k}` | `c = H(Q_bar, alpha, beta, a_0, b_0, ..., a_k, b_k)` |
+
+Per la prova OR con `k = 1` il formato coincide con quello di ElectionGuard: è la condizione per il test T3.
+
+Per questo la prova OR non segue alla lettera la regola generale; `g` e `K` sono comunque legati tramite `Q_bar`.
+
+Per R2 si usa la stessa prova OR con il solo valore ammesso `1`, quindi `c = H(Q_bar, alpha, beta, a, b)`.
+
+## Schnorr
+
+Dati `Y = g^x` e un nonce `u ∈ Z_q`:
+
+```text
+h = g^u mod p
+
+c = H(context, g, Y, h)
+
+z = u + c·x mod q
+```
+
+Verifica:
+
+```text
+Y e h appartengono al sottogruppo
+
+c = H(context, g, Y, h)
+
+g^z = h · Y^c mod p
+```
+
+Per l'impegno `K_i,j` della cerimonia delle chiavi il contesto è `(Q, i, j)`.
+
+## Chaum-Pedersen generico
+
+Dati `Y1 = g1^x`, `Y2 = g2^x` e un nonce `u ∈ Z_q`:
+
+```text
+a = g1^u mod p
+
+b = g2^u mod p
+
+c = H(context, g1, Y1, g2, Y2, a, b)
+
+z = u + c·x mod q
+```
+
+Verifica:
+
+```text
+Y1, Y2, a e b appartengono al sottogruppo
+
+c = H(context, g1, Y1, g2, Y2, a, b)
+
+g1^z = a · Y1^c mod p
+
+g2^z = b · Y2^c mod p
+```
+
+Per la share di decifratura: contesto `(Q_bar, l)`, `g1 = g`, `Y1 = V_l`, `g2 = A`, `Y2 = M_l`, `x = s_l`.
+
+Come per `encrypt`, il nonce `u` è generato con `secrets` ma deve poter essere passato esplicitamente nei test.
+
+## Differenze rispetto a ElectionGuard 1.4
+
+- Schnorr: ElectionGuard usa `c = H(K_i,j, h)`; noi aggiungiamo contesto e indici.
+- Share di decifratura: ElectionGuard usa `c = H(Q_bar, A, B, a, b, M)`; noi aggiungiamo l'indice del garante e la chiave di verifica `V_l`, che fa parte dell'enunciato.
+
+È la forma forte di Fiat-Shamir richiesta dalla sezione 15.
+
+---
+
+# 37. Convenzioni e responsabilità aggiuntive
+
+Decisioni v0.2.
+
+## Controlli sugli elementi ricevuti
+
+Ogni elemento del gruppo ricevuto da un altro partecipante o letto dal registro (impegni, chiavi di verifica, share di decifratura, impegni delle prove, cifrati) deve superare `is_subgroup_element` prima di essere usato.
+
+È necessario perché il gruppo RFC 5114 a 2048 bit previsto per la demo non è un safe prime: `(p - 1) / q` è composto (è almeno pari) e senza questo controllo sono possibili attacchi a sottogruppi piccoli.
+
+Challenge, risposte e share devono essere interi compresi tra `0` e `q - 1`.
+
+## Gruppo didattico per i test
+
+Il gruppo `p = 2579`, `q = 1289`, `g = 4` va definito una sola volta, come costante `TEST_PARAMS` in `evoto/gruppo.py` (Persona A).
+
+Fino ad allora ogni file di test lo definisce localmente con gli stessi valori.
+
+## Responsabilità
+
+| Cosa | Dove | Chi |
+|---|---|---|
+| Prodotto e divisione di due cifrati | `evoto/elgamal.py` | A |
+| Logaritmo discreto baby-step giant-step | `evoto/elgamal.py` | A |
+| Contesti `Q` e `Q_bar` | `evoto/garanti.py` | B |
+| Coefficienti di Lagrange | `evoto/decifratura.py` | B |
+| Aggregazione dei cifrati di più schede (tally) | `evoto/urna.py` | B |
+| Test d'integrazione del referendum sì/no | `test/test_referendum.py` | B, con review di A |
+
+## Nota per la tesina
+
+La generazione congiunta della chiave con impegni di Feldman, la stessa usata da ElectionGuard, permette a un garante disonesto di influenzare in parte la distribuzione della chiave pubblica (Gennaro, Jarecki, Krawczyk, Rabin, 1999).
+
+Nel modello honest-but-curious che adottiamo non è un problema, ma va citato nell'analisi critica.
+
+---
+
+# 38. Esempio numerico di riferimento per i test
+
+Gruppo didattico: `p = 2579`, `q = 1289`, `g = 4`.
+
+Tre garanti, `quorum = 2`, identificativo dell'elezione `e = 1`.
+
+I polinomi sono scelti in modo che la loro somma coincida con il polinomio dell'esempio della proposta di progetto:
+
+```text
+P_1(x) = 300 + 40x
+P_2(x) = 400 + 50x
+P_3(x) =  65 + 10x
+
+S(x)   = 765 + 100x
+```
+
+## Cerimonia delle chiavi
+
+| Valore | Garante 1 | Garante 2 | Garante 3 |
+|---|---|---|---|
+| `K_i,0` | 2228 | 523 | 299 |
+| `K_i,1` | 1370 | 2277 | 1502 |
+| `P_i(1)` | 340 | 450 | 75 |
+| `P_i(2)` | 380 | 500 | 85 |
+| `P_i(3)` | 420 | 550 | 95 |
+
+| Garante `l` | Share aggregata `s_l` | Chiave di verifica `V_l` |
+|---|---|---|
+| 1 | 865 | 2502 |
+| 2 | 965 | 2488 |
+| 3 | 1065 | 2237 |
+
+```text
+K     = 2228 · 523 · 299 mod 2579 = 530
+Q     = H(2579, 1289, 4, 3, 2, 1) = 889
+Q_bar = H(889, 530)               = 744
+```
+
+## Voti e tally
+
+Voti `1, 0, 1` con randomness `11, 22, 33`:
+
+```text
+(850, 2375)   (380, 22)   (625, 670)
+
+(A, B) = (1196, 154)
+```
+
+## Decifratura
+
+```text
+M_1 = 1196^865  mod 2579 = 60
+M_2 = 1196^965  mod 2579 = 508
+M_3 = 1196^1065 mod 2579 = 1894
+```
+
+| Garanti presenti `S` | Coefficienti `λ_l` | `M` |
+|---|---|---|
+| {1, 3} | 646, 644 | 332 |
+| {1, 2} | 2, 1288 | 332 |
+| {2, 3} | 3, 1287 | 332 |
+| {1, 2, 3} | 3, 1286, 1 | 332 |
+
+In ogni caso `B / M = 154 / 332 = 16 = 4^2`, quindi `t = 2`.
+
+## Prove con nonce fissato
+
+Schnorr del garante 1 sull'impegno `K_1,0` (`x = 300`), con `u = 7`:
+
+```text
+h = 910    c = H(889, 1, 0, 4, 2228, 910) = 957    z = 949
+```
+
+Chaum-Pedersen del garante 1 sulla share `M_1` (`x = 865`), con `u = 7`:
+
+```text
+a = 910    b = 1033    c = H(744, 1, 4, 2502, 1196, 60, 910, 1033) = 524    z = 828
+```
+
+---
+
+# 39. Storico delle versioni
+
+| Versione | Contenuto |
+|---|---|
+| 0.1 | Specifica condivisa di F1 |
+| 0.2 | Decisioni per F3: modello a share aggregate (sezione 23), contesti e input di Fiat-Shamir (sezioni 35 e 36), tipi condivisi e chiave pubblica come `int` (sezioni 20 e 27), convenzioni su garanti e controlli (sezioni 18, 19 e 37), nota su T2 (sezione 26), esempio numerico (sezione 38) |
