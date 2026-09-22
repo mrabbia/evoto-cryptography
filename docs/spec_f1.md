@@ -305,8 +305,10 @@ totale
 Ogni cifratura utilizza:
 
 ```text
-r ∈ Z_q
+r ∈ {1, ..., q - 1}
 ```
+Il valore r = 0 non viene utilizzato, perché produrrebbe alpha = 1
+e renderebbe la cifratura deterministica rispetto al messaggio.
 
 Nell'uso normale deve essere generato in maniera crittograficamente sicura.
 
