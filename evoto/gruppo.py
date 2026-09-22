@@ -33,6 +33,15 @@ class GroupParameters:
     g: int
 
 
+# Gruppo didattico usato nei test e nel notebook.
+# Non è il gruppo di sicurezza previsto per la demo finale.
+TEST_PARAMS = GroupParameters(
+    p=2579,
+    q=1289,
+    g=4,
+)
+
+
 def mod_pow(base: int, exponent: int, modulus: int) -> int:
     """
     Calcola base^exponent modulo modulus.
