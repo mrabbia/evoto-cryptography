@@ -18,18 +18,11 @@ import pytest
 from evoto.gruppo import (
     GroupParameters,
     H,
+    TEST_PARAMS,
     is_subgroup_element,
     mod_inverse,
     mod_pow,
     validate_group_parameters,
-)
-
-
-# Gruppo didattico usato nei test.
-TEST_PARAMS = GroupParameters(
-    p=2579,
-    q=1289,
-    g=4,
 )
 
 
@@ -216,6 +209,44 @@ def test_hash_known_vector():
     result = H(1, 2, 255, params=TEST_PARAMS)
 
     assert result == 74
+
+
+def test_hash_base_context_reference_vector():
+    """
+    Controlla il vettore di riferimento per il contesto Q.
+
+    La specifica F1 v0.2 stabilisce:
+        Q = H(2579, 1289, 4, 3, 2, 1) = 889
+    """
+
+    result = H(
+        2579,
+        1289,
+        4,
+        3,
+        2,
+        1,
+        params=TEST_PARAMS,
+    )
+
+    assert result == 889
+
+
+def test_hash_extended_context_reference_vector():
+    """
+    Controlla il vettore di riferimento per il contesto Q_bar.
+
+    La specifica F1 v0.2 stabilisce:
+        Q_bar = H(889, 530) = 744
+    """
+
+    result = H(
+        889,
+        530,
+        params=TEST_PARAMS,
+    )
+
+    assert result == 744
 
 
 def test_hash_serialization_matches_specification():
