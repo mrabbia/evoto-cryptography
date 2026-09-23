@@ -493,3 +493,37 @@ def test_value_in_set_proof_with_four_values():
         params=TEST_PARAMS,
         context=744,
     )
+
+
+def test_value_in_set_accepts_zero_derived_nonce():
+    """
+    Un ciphertext derivato omomorficamente può avere nonce 0.
+
+    Questo caso è necessario per le prove R2-R5 della scheda,
+    dove le casualità vengono sommate o sottratte modulo q.
+    """
+
+    ciphertext = Ciphertext(
+        alpha=1,
+        beta=4,
+    )
+
+    proof = prove_value_in_set(
+        ciphertext=ciphertext,
+        plaintext=1,
+        nonce=0,
+        allowed_values=(0, 1),
+        public_key=530,
+        params=TEST_PARAMS,
+        context=744,
+        proof_nonce=7,
+    )
+
+    assert verify_value_in_set(
+        ciphertext=ciphertext,
+        proof=proof,
+        allowed_values=(0, 1),
+        public_key=530,
+        params=TEST_PARAMS,
+        context=744,
+    )

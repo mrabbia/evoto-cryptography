@@ -197,7 +197,8 @@ print(
     assert "CROSS_RESULT=True" in output
 
 
-def test_t3_electionguard_proof_verified_by_evoto():
+@pytest.mark.parametrize("plaintext", [0, 1])
+def test_t3_electionguard_proof_verified_by_evoto(plaintext):
     """
     T3, prima direzione.
 
@@ -205,7 +206,7 @@ def test_t3_electionguard_proof_verified_by_evoto():
     e il nostro verificatore deve accettarla.
     """
 
-    code = """
+    code = f"""
 from electionguard.constants import (
     get_large_prime,
     get_small_prime,
@@ -240,7 +241,7 @@ nonce = int_to_q(3)
 context = int_to_q(12345)
 
 eg_ciphertext = elgamal_encrypt(
-    1,
+    {plaintext},
     nonce,
     int_to_p(public_key),
 )
@@ -251,7 +252,7 @@ eg_proof = make_disjunctive_chaum_pedersen(
     int_to_p(public_key),
     context,
     int_to_q(99),
-    1,
+    {plaintext},
 )
 
 ciphertext = Ciphertext(
@@ -309,7 +310,8 @@ print("CROSS_RESULT=" + str(success))
     assert "CROSS_RESULT=True" in output
 
 
-def test_t3_evoto_proof_verified_by_electionguard():
+@pytest.mark.parametrize("plaintext", [0, 1])
+def test_t3_evoto_proof_verified_by_electionguard(plaintext):
     """
     T3, seconda direzione.
 
@@ -317,7 +319,7 @@ def test_t3_evoto_proof_verified_by_electionguard():
     e ElectionGuard deve accettarla.
     """
 
-    code = """
+    code = f"""
 from electionguard.constants import (
     get_large_prime,
     get_small_prime,
@@ -346,7 +348,7 @@ params = GroupParameters(
 public_key = pow(g, 2, p)
 
 ciphertext = encrypt(
-    message=1,
+    message={plaintext},
     public_key=public_key,
     params=params,
     nonce=3,
@@ -354,7 +356,7 @@ ciphertext = encrypt(
 
 proof = prove_value_in_set(
     ciphertext=ciphertext,
-    plaintext=1,
+    plaintext={plaintext},
     nonce=3,
     allowed_values=(0, 1),
     public_key=public_key,
