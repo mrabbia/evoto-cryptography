@@ -391,8 +391,8 @@ def prove_value_in_set(
     if plaintext not in allowed_values:
         raise ValueError("Il plaintext non appartiene ai valori ammessi.")
 
-    if not 1 <= nonce < params.q:
-        raise ValueError("Il nonce deve essere compreso tra 1 e q - 1.")
+    if not 0 <= nonce < params.q:
+        raise ValueError("Il nonce deve essere compreso tra 0 e q - 1.")
 
     if not is_subgroup_element(public_key, params):
         raise ValueError("La chiave pubblica non appartiene al sottogruppo.")
