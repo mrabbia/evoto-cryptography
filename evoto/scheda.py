@@ -10,6 +10,7 @@ Le primitive crittografiche sono riutilizzate dai moduli
 elgamal.py e prove.py, senza ridefinirle.
 """
 
+from dataclasses import dataclass
 from evoto.elgamal import (
     Ciphertext,
     divide_ciphertexts,
@@ -22,6 +23,55 @@ from evoto.prove import (
     verify_value_in_set,
 )
 
+
+@dataclass(frozen=True)
+class EncryptedBallot:
+    """
+    Rappresenta una scheda politica cifrata.
+
+    Contiene soltanto dati pubblici:
+    - un ciphertext per ogni lista;
+    - un ciphertext per la scheda bianca;
+    - un ciphertext per ogni candidato selezionabile.
+    """
+
+    list_ciphertexts: tuple[Ciphertext, ...]
+    blank_ciphertext: Ciphertext
+    preference_ciphertexts: tuple[Ciphertext, ...]
+
+    def all_ciphertexts(self) -> tuple[Ciphertext, ...]:
+        """
+        Restituisce tutti i ciphertext della scheda.
+
+        L'ordine è: liste, scheda bianca, preferenze.
+        """
+
+        return (
+            self.list_ciphertexts
+            + (self.blank_ciphertext,)
+            + self.preference_ciphertexts
+        )
+
+
+@dataclass(frozen=True)
+class BallotProofs:
+    """
+    Raccoglie le prove pubbliche di validità di una scheda.
+
+    Contiene:
+    - una prova R1 per ogni ciphertext della scheda;
+    - una prova R2 per la scelta tra liste e scheda bianca;
+    - una prova R3 per ogni preferenza;
+    - una prova R4 per il numero totale di preferenze;
+    - una prova R5 per ciascun genere considerato.
+    """
+
+    r1_proofs: tuple[ValueSetProof, ...]
+    r2_proof: ValueSetProof
+    r3_proofs: tuple[ValueSetProof, ...]
+    r4_proof: ValueSetProof
+    r5_proofs: tuple[ValueSetProof, ...]
+    
 
 def prove_r1(
     ciphertext: Ciphertext,

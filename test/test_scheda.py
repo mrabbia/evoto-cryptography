@@ -23,6 +23,8 @@ from evoto.scheda import (
     verify_r4,
     prove_r5,
     verify_r5,
+    EncryptedBallot,
+    BallotProofs,
 )
 
 
@@ -568,3 +570,75 @@ def test_r5_accepts_zero_derived_nonce():
         params=TEST_PARAMS,
         context=CONTEXT,
     )
+
+
+def test_encrypted_ballot_contains_all_ciphertexts_in_order():
+    """
+    La scheda cifrata espone tutte le caselle nell'ordine previsto.
+    """
+
+    list_ciphertexts = (
+        encrypt(1, PUBLIC_KEY, TEST_PARAMS, nonce=10),
+        encrypt(0, PUBLIC_KEY, TEST_PARAMS, nonce=20),
+    )
+
+    blank_ciphertext = encrypt(
+        0,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=30,
+    )
+
+    preference_ciphertexts = (
+        encrypt(1, PUBLIC_KEY, TEST_PARAMS, nonce=40),
+        encrypt(0, PUBLIC_KEY, TEST_PARAMS, nonce=50),
+    )
+
+    ballot = EncryptedBallot(
+        list_ciphertexts=list_ciphertexts,
+        blank_ciphertext=blank_ciphertext,
+        preference_ciphertexts=preference_ciphertexts,
+    )
+
+    assert ballot.all_ciphertexts() == (
+        list_ciphertexts
+        + (blank_ciphertext,)
+        + preference_ciphertexts
+    )
+
+
+def test_ballot_proofs_groups_all_rules():
+    """
+    Le prove della scheda devono poter essere raccolte
+    in un'unica struttura pubblica.
+    """
+
+    ciphertext = encrypt(
+        1,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=10,
+    )
+
+    proof = prove_r1(
+        ciphertext=ciphertext,
+        plaintext=1,
+        nonce=10,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    proofs = BallotProofs(
+        r1_proofs=(proof,),
+        r2_proof=proof,
+        r3_proofs=(proof,),
+        r4_proof=proof,
+        r5_proofs=(proof, proof),
+    )
+
+    assert proofs.r1_proofs == (proof,)
+    assert proofs.r2_proof == proof
+    assert proofs.r3_proofs == (proof,)
+    assert proofs.r4_proof == proof
+    assert proofs.r5_proofs == (proof, proof)
