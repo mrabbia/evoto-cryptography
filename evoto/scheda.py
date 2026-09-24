@@ -12,6 +12,7 @@ elgamal.py e prove.py, senza ridefinirle.
 
 from evoto.elgamal import (
     Ciphertext,
+    divide_ciphertexts,
     multiply_ciphertexts,
 )
 from evoto.gruppo import GroupParameters
@@ -156,6 +157,71 @@ def verify_r2(
         ciphertext=derived_ciphertext,
         proof=proof,
         allowed_values=(1,),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+
+def prove_r3(
+    list_ciphertext: Ciphertext,
+    preference_ciphertext: Ciphertext,
+    list_plaintext: int,
+    preference_plaintext: int,
+    list_nonce: int,
+    preference_nonce: int,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> ValueSetProof:
+    """
+    Genera la prova R3 per una singola preferenza.
+
+    La differenza lista - preferenza deve appartenere a {0, 1}.
+    """
+
+    derived_ciphertext = divide_ciphertexts(
+        list_ciphertext,
+        preference_ciphertext,
+        params,
+    )
+
+    derived_plaintext = list_plaintext - preference_plaintext
+    derived_nonce = (list_nonce - preference_nonce) % params.q
+
+    return prove_value_in_set(
+        ciphertext=derived_ciphertext,
+        plaintext=derived_plaintext,
+        nonce=derived_nonce,
+        allowed_values=(0, 1),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+
+def verify_r3(
+    list_ciphertext: Ciphertext,
+    preference_ciphertext: Ciphertext,
+    proof: ValueSetProof,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> bool:
+    """
+    Verifica la prova R3 per una singola preferenza.
+    """
+
+    derived_ciphertext = divide_ciphertexts(
+        list_ciphertext,
+        preference_ciphertext,
+        params,
+    )
+
+    return verify_value_in_set(
+        ciphertext=derived_ciphertext,
+        proof=proof,
+        allowed_values=(0, 1),
         public_key=public_key,
         params=params,
         context=context,

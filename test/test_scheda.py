@@ -17,6 +17,8 @@ from evoto.scheda import (
     verify_r1,
     prove_r2,
     verify_r2,
+    prove_r3,
+    verify_r3,
 )
 
 
@@ -178,6 +180,142 @@ def test_r2_accepts_zero_derived_nonce():
 
     assert verify_r2(
         ciphertexts=ciphertexts,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+@pytest.mark.parametrize(
+    ("list_value", "preference_value"),
+    [
+        (0, 0),
+        (1, 0),
+        (1, 1),
+    ],
+)
+def test_r3_accepts_valid_preference_relation(
+    list_value,
+    preference_value,
+):
+    """
+    R3 accetta tutti i casi coerenti tra lista e preferenza.
+    """
+
+    list_nonce = 100
+    preference_nonce = 40
+
+    list_ciphertext = encrypt(
+        list_value,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=list_nonce,
+    )
+
+    preference_ciphertext = encrypt(
+        preference_value,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=preference_nonce,
+    )
+
+    proof = prove_r3(
+        list_ciphertext=list_ciphertext,
+        preference_ciphertext=preference_ciphertext,
+        list_plaintext=list_value,
+        preference_plaintext=preference_value,
+        list_nonce=list_nonce,
+        preference_nonce=preference_nonce,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r3(
+        list_ciphertext=list_ciphertext,
+        preference_ciphertext=preference_ciphertext,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+def test_r3_rejects_preference_outside_selected_list():
+    """
+    R3 rifiuta una preferenza quando la lista non è selezionata.
+    """
+
+    list_ciphertext = encrypt(
+        0,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=100,
+    )
+
+    preference_ciphertext = encrypt(
+        1,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=40,
+    )
+
+    with pytest.raises(ValueError):
+        prove_r3(
+            list_ciphertext=list_ciphertext,
+            preference_ciphertext=preference_ciphertext,
+            list_plaintext=0,
+            preference_plaintext=1,
+            list_nonce=100,
+            preference_nonce=40,
+            public_key=PUBLIC_KEY,
+            params=TEST_PARAMS,
+            context=CONTEXT,
+        )
+
+
+def test_r3_accepts_zero_derived_nonce():
+    """
+    R3 deve accettare una randomness derivata uguale a 0 modulo q.
+    """
+
+    list_nonce = 600
+    preference_nonce = 600
+
+    assert (
+        list_nonce - preference_nonce
+    ) % TEST_PARAMS.q == 0
+
+    list_ciphertext = encrypt(
+        1,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=list_nonce,
+    )
+
+    preference_ciphertext = encrypt(
+        1,
+        PUBLIC_KEY,
+        TEST_PARAMS,
+        nonce=preference_nonce,
+    )
+
+    proof = prove_r3(
+        list_ciphertext=list_ciphertext,
+        preference_ciphertext=preference_ciphertext,
+        list_plaintext=1,
+        preference_plaintext=1,
+        list_nonce=list_nonce,
+        preference_nonce=preference_nonce,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r3(
+        list_ciphertext=list_ciphertext,
+        preference_ciphertext=preference_ciphertext,
         proof=proof,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
