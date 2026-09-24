@@ -15,6 +15,8 @@ from evoto.gruppo import TEST_PARAMS
 from evoto.scheda import (
     prove_r1,
     verify_r1,
+    prove_r2,
+    verify_r2,
 )
 
 
@@ -76,3 +78,108 @@ def test_r1_rejects_non_binary_plaintext():
             params=TEST_PARAMS,
             context=CONTEXT,
         )
+
+
+def test_r2_accepts_exactly_one_choice():
+    """R2 accetta una sola scelta tra liste e scheda bianca."""
+
+    plaintexts = (0, 1, 0)
+    nonces = (10, 20, 30)
+
+    ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(plaintexts, nonces)
+    )
+
+    proof = prove_r2(
+        ciphertexts=ciphertexts,
+        plaintexts=plaintexts,
+        nonces=nonces,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r2(
+        ciphertexts=ciphertexts,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+@pytest.mark.parametrize(
+    "plaintexts",
+    [
+        (0, 0, 0),
+        (1, 1, 0),
+    ],
+)
+def test_r2_rejects_invalid_number_of_choices(plaintexts):
+    """R2 rifiuta zero scelte o più di una scelta."""
+
+    nonces = (10, 20, 30)
+
+    ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(plaintexts, nonces)
+    )
+
+    with pytest.raises(ValueError):
+        prove_r2(
+            ciphertexts=ciphertexts,
+            plaintexts=plaintexts,
+            nonces=nonces,
+            public_key=PUBLIC_KEY,
+            params=TEST_PARAMS,
+            context=CONTEXT,
+        )
+
+
+def test_r2_accepts_zero_derived_nonce():
+    """
+    R2 deve accettare una randomness aggregata uguale a 0 modulo q.
+    """
+
+    plaintexts = (1, 0)
+    nonces = (600, 689)
+
+    assert sum(nonces) % TEST_PARAMS.q == 0
+
+    ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(plaintexts, nonces)
+    )
+
+    proof = prove_r2(
+        ciphertexts=ciphertexts,
+        plaintexts=plaintexts,
+        nonces=nonces,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r2(
+        ciphertexts=ciphertexts,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )

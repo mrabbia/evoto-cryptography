@@ -10,7 +10,10 @@ Le primitive crittografiche sono riutilizzate dai moduli
 elgamal.py e prove.py, senza ridefinirle.
 """
 
-from evoto.elgamal import Ciphertext
+from evoto.elgamal import (
+    Ciphertext,
+    multiply_ciphertexts,
+)
 from evoto.gruppo import GroupParameters
 from evoto.prove import (
     ValueSetProof,
@@ -59,6 +62,100 @@ def verify_r1(
         ciphertext=ciphertext,
         proof=proof,
         allowed_values=(0, 1),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+
+def _multiply_all(
+    ciphertexts: tuple[Ciphertext, ...],
+    params: GroupParameters,
+) -> Ciphertext:
+    """
+    Moltiplica una sequenza non vuota di ciphertext.
+    """
+
+    if not ciphertexts:
+        raise ValueError("È richiesto almeno un ciphertext.")
+
+    result = ciphertexts[0]
+
+    for ciphertext in ciphertexts[1:]:
+        result = multiply_ciphertexts(
+            result,
+            ciphertext,
+            params,
+        )
+
+    return result
+
+
+def prove_r2(
+    ciphertexts: tuple[Ciphertext, ...],
+    plaintexts: tuple[int, ...],
+    nonces: tuple[int, ...],
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> ValueSetProof:
+    """
+    Genera la prova R2.
+
+    I ciphertext rappresentano i bit delle liste e della scheda bianca.
+    La loro somma deve essere esattamente 1.
+    """
+
+    if not (
+        len(ciphertexts)
+        == len(plaintexts)
+        == len(nonces)
+    ):
+        raise ValueError(
+            "Ciphertext, plaintext e nonce devono avere la stessa lunghezza."
+        )
+
+    derived_ciphertext = _multiply_all(
+        ciphertexts,
+        params,
+    )
+
+    total_plaintext = sum(plaintexts)
+    derived_nonce = sum(nonces) % params.q
+
+    return prove_value_in_set(
+        ciphertext=derived_ciphertext,
+        plaintext=total_plaintext,
+        nonce=derived_nonce,
+        allowed_values=(1,),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+
+def verify_r2(
+    ciphertexts: tuple[Ciphertext, ...],
+    proof: ValueSetProof,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> bool:
+    """
+    Verifica la prova R2.
+
+    Il prodotto omomorfico dei ciphertext deve cifrare esattamente 1.
+    """
+
+    derived_ciphertext = _multiply_all(
+        ciphertexts,
+        params,
+    )
+
+    return verify_value_in_set(
+        ciphertext=derived_ciphertext,
+        proof=proof,
+        allowed_values=(1,),
         public_key=public_key,
         params=params,
         context=context,
