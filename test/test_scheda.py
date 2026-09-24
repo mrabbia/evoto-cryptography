@@ -21,6 +21,8 @@ from evoto.scheda import (
     verify_r3,
     prove_r4,
     verify_r4,
+    prove_r5,
+    verify_r5,
 )
 
 
@@ -440,6 +442,127 @@ def test_r4_accepts_zero_derived_nonce():
 
     assert verify_r4(
         preference_ciphertexts=preference_ciphertexts,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+@pytest.mark.parametrize(
+    "gender_plaintexts",
+    [
+        (0, 0, 0),
+        (1, 0, 0),
+        (1, 1, 0),
+    ],
+)
+def test_r5_accepts_up_to_two_preferences_same_gender(
+    gender_plaintexts,
+):
+    """
+    R5 accetta da zero a due preferenze dello stesso genere.
+    """
+
+    gender_nonces = (10, 20, 30)
+
+    gender_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            gender_plaintexts,
+            gender_nonces,
+        )
+    )
+
+    proof = prove_r5(
+        gender_ciphertexts=gender_ciphertexts,
+        gender_plaintexts=gender_plaintexts,
+        gender_nonces=gender_nonces,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r5(
+        gender_ciphertexts=gender_ciphertexts,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+def test_r5_rejects_three_preferences_same_gender():
+    """
+    R5 rifiuta tre preferenze appartenenti allo stesso genere.
+    """
+
+    gender_plaintexts = (1, 1, 1)
+    gender_nonces = (10, 20, 30)
+
+    gender_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            gender_plaintexts,
+            gender_nonces,
+        )
+    )
+
+    with pytest.raises(ValueError):
+        prove_r5(
+            gender_ciphertexts=gender_ciphertexts,
+            gender_plaintexts=gender_plaintexts,
+            gender_nonces=gender_nonces,
+            public_key=PUBLIC_KEY,
+            params=TEST_PARAMS,
+            context=CONTEXT,
+        )
+
+
+def test_r5_accepts_zero_derived_nonce():
+    """
+    R5 accetta una randomness aggregata uguale a 0 modulo q.
+    """
+
+    gender_plaintexts = (1, 1)
+    gender_nonces = (600, 689)
+
+    assert sum(gender_nonces) % TEST_PARAMS.q == 0
+
+    gender_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            gender_plaintexts,
+            gender_nonces,
+        )
+    )
+
+    proof = prove_r5(
+        gender_ciphertexts=gender_ciphertexts,
+        gender_plaintexts=gender_plaintexts,
+        gender_nonces=gender_nonces,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r5(
+        gender_ciphertexts=gender_ciphertexts,
         proof=proof,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,

@@ -297,3 +297,72 @@ def verify_r4(
         params=params,
         context=context,
     )
+
+
+def prove_r5(
+    gender_ciphertexts: tuple[Ciphertext, ...],
+    gender_plaintexts: tuple[int, ...],
+    gender_nonces: tuple[int, ...],
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> ValueSetProof:
+    """
+    Genera la prova R5 per un singolo genere.
+
+    La somma delle preferenze dello stesso genere deve
+    appartenere all'insieme {0, 1, 2}.
+    """
+
+    if not (
+        len(gender_ciphertexts)
+        == len(gender_plaintexts)
+        == len(gender_nonces)
+    ):
+        raise ValueError(
+            "Ciphertext, plaintext e nonce devono avere la stessa lunghezza."
+        )
+
+    derived_ciphertext = _multiply_all(
+        gender_ciphertexts,
+        params,
+    )
+
+    total_plaintext = sum(gender_plaintexts)
+    derived_nonce = sum(gender_nonces) % params.q
+
+    return prove_value_in_set(
+        ciphertext=derived_ciphertext,
+        plaintext=total_plaintext,
+        nonce=derived_nonce,
+        allowed_values=(0, 1, 2),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+
+def verify_r5(
+    gender_ciphertexts: tuple[Ciphertext, ...],
+    proof: ValueSetProof,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> bool:
+    """
+    Verifica la prova R5 per un singolo genere.
+    """
+
+    derived_ciphertext = _multiply_all(
+        gender_ciphertexts,
+        params,
+    )
+
+    return verify_value_in_set(
+        ciphertext=derived_ciphertext,
+        proof=proof,
+        allowed_values=(0, 1, 2),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
