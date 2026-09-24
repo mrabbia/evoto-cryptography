@@ -19,6 +19,8 @@ from evoto.scheda import (
     verify_r2,
     prove_r3,
     verify_r3,
+    prove_r4,
+    verify_r4,
 )
 
 
@@ -316,6 +318,128 @@ def test_r3_accepts_zero_derived_nonce():
     assert verify_r3(
         list_ciphertext=list_ciphertext,
         preference_ciphertext=preference_ciphertext,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+@pytest.mark.parametrize(
+    "preference_plaintexts",
+    [
+        (0, 0, 0, 0),
+        (1, 0, 0, 0),
+        (1, 1, 0, 0),
+        (1, 1, 1, 0),
+    ],
+)
+def test_r4_accepts_up_to_three_preferences(
+    preference_plaintexts,
+):
+    """
+    R4 accetta da zero a tre preferenze complessive.
+    """
+
+    preference_nonces = (10, 20, 30, 40)
+
+    preference_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            preference_plaintexts,
+            preference_nonces,
+        )
+    )
+
+    proof = prove_r4(
+        preference_ciphertexts=preference_ciphertexts,
+        preference_plaintexts=preference_plaintexts,
+        preference_nonces=preference_nonces,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r4(
+        preference_ciphertexts=preference_ciphertexts,
+        proof=proof,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+def test_r4_rejects_four_preferences():
+    """
+    R4 rifiuta una scheda con quattro preferenze.
+    """
+
+    preference_plaintexts = (1, 1, 1, 1)
+    preference_nonces = (10, 20, 30, 40)
+
+    preference_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            preference_plaintexts,
+            preference_nonces,
+        )
+    )
+
+    with pytest.raises(ValueError):
+        prove_r4(
+            preference_ciphertexts=preference_ciphertexts,
+            preference_plaintexts=preference_plaintexts,
+            preference_nonces=preference_nonces,
+            public_key=PUBLIC_KEY,
+            params=TEST_PARAMS,
+            context=CONTEXT,
+        )
+
+
+def test_r4_accepts_zero_derived_nonce():
+    """
+    R4 accetta una randomness aggregata uguale a 0 modulo q.
+    """
+
+    preference_plaintexts = (1, 1)
+    preference_nonces = (600, 689)
+
+    assert sum(preference_nonces) % TEST_PARAMS.q == 0
+
+    preference_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            preference_plaintexts,
+            preference_nonces,
+        )
+    )
+
+    proof = prove_r4(
+        preference_ciphertexts=preference_ciphertexts,
+        preference_plaintexts=preference_plaintexts,
+        preference_nonces=preference_nonces,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r4(
+        preference_ciphertexts=preference_ciphertexts,
         proof=proof,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,

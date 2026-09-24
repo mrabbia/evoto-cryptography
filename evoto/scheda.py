@@ -226,3 +226,74 @@ def verify_r3(
         params=params,
         context=context,
     )
+
+
+def prove_r4(
+    preference_ciphertexts: tuple[Ciphertext, ...],
+    preference_plaintexts: tuple[int, ...],
+    preference_nonces: tuple[int, ...],
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> ValueSetProof:
+    """
+    Genera la prova R4.
+
+    La somma complessiva delle preferenze deve appartenere
+    all'insieme {0, 1, 2, 3}.
+    """
+
+    if not (
+        len(preference_ciphertexts)
+        == len(preference_plaintexts)
+        == len(preference_nonces)
+    ):
+        raise ValueError(
+            "Ciphertext, plaintext e nonce devono avere la stessa lunghezza."
+        )
+
+    derived_ciphertext = _multiply_all(
+        preference_ciphertexts,
+        params,
+    )
+
+    total_plaintext = sum(preference_plaintexts)
+    derived_nonce = sum(preference_nonces) % params.q
+
+    return prove_value_in_set(
+        ciphertext=derived_ciphertext,
+        plaintext=total_plaintext,
+        nonce=derived_nonce,
+        allowed_values=(0, 1, 2, 3),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+
+def verify_r4(
+    preference_ciphertexts: tuple[Ciphertext, ...],
+    proof: ValueSetProof,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> bool:
+    """
+    Verifica la prova R4.
+
+    La somma delle preferenze deve essere compresa tra 0 e 3.
+    """
+
+    derived_ciphertext = _multiply_all(
+        preference_ciphertexts,
+        params,
+    )
+
+    return verify_value_in_set(
+        ciphertext=derived_ciphertext,
+        proof=proof,
+        allowed_values=(0, 1, 2, 3),
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
