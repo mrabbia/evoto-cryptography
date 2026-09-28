@@ -1,0 +1,592 @@
+{
+  "name": "Elezione politica di esempio",
+  "election_id": 1,
+  "seats": 30,
+  "rules": {
+    "max_preferences": 3,
+    "max_preferences_per_gender": 2,
+    "list_threshold_percent": 3,
+    "coalition_threshold_percent": 10,
+    "bonus_threshold_percent": 42,
+    "bonus_seats_percent": 55
+  },
+  "lists": [
+    {
+      "name": "Lista A",
+      "coalition": "Coalizione Alfa"
+    },
+    {
+      "name": "Lista B",
+      "coalition": "Coalizione Alfa"
+    },
+    {
+      "name": "Lista C",
+      "coalition": null
+    },
+    {
+      "name": "Lista D",
+      "coalition": "Coalizione Alfa"
+    },
+    {
+      "name": "Lista E",
+      "coalition": "Coalizione Beta"
+    },
+    {
+      "name": "Lista F",
+      "coalition": "Coalizione Beta"
+    },
+    {
+      "name": "Lista G",
+      "coalition": "Coalizione Beta"
+    },
+    {
+      "name": "Lista H",
+      "coalition": null
+    }
+  ],
+  "districts": [
+    {
+      "name": "Nord",
+      "candidates": {
+        "Lista A": [
+          {
+            "name": "Ferri A.",
+            "gender": "M"
+          },
+          {
+            "name": "Galli M.",
+            "gender": "M"
+          },
+          {
+            "name": "Conti L.",
+            "gender": "F"
+          },
+          {
+            "name": "Marino P.",
+            "gender": "M"
+          },
+          {
+            "name": "Greco S.",
+            "gender": "F"
+          }
+        ],
+        "Lista B": [
+          {
+            "name": "Rinaldi C.",
+            "gender": "F"
+          },
+          {
+            "name": "Bruno E.",
+            "gender": "F"
+          },
+          {
+            "name": "Costa D.",
+            "gender": "M"
+          },
+          {
+            "name": "Fontana G.",
+            "gender": "F"
+          },
+          {
+            "name": "Leone R.",
+            "gender": "M"
+          }
+        ],
+        "Lista C": [
+          {
+            "name": "Moretti V.",
+            "gender": "M"
+          },
+          {
+            "name": "Barbieri N.",
+            "gender": "M"
+          },
+          {
+            "name": "Lombardi T.",
+            "gender": "F"
+          },
+          {
+            "name": "Serra I.",
+            "gender": "F"
+          },
+          {
+            "name": "Villa F.",
+            "gender": "M"
+          }
+        ],
+        "Lista D": [
+          {
+            "name": "Amato A.",
+            "gender": "M"
+          },
+          {
+            "name": "Bassi B.",
+            "gender": "F"
+          },
+          {
+            "name": "Bellini C.",
+            "gender": "M"
+          },
+          {
+            "name": "Benedetti D.",
+            "gender": "F"
+          },
+          {
+            "name": "Bernardi E.",
+            "gender": "M"
+          }
+        ],
+        "Lista E": [
+          {
+            "name": "Bianco F.",
+            "gender": "F"
+          },
+          {
+            "name": "Caputo G.",
+            "gender": "M"
+          },
+          {
+            "name": "Cattaneo L.",
+            "gender": "F"
+          },
+          {
+            "name": "Colombo M.",
+            "gender": "M"
+          },
+          {
+            "name": "Coppola N.",
+            "gender": "F"
+          }
+        ],
+        "Lista F": [
+          {
+            "name": "Cristiani P.",
+            "gender": "M"
+          },
+          {
+            "name": "Donati R.",
+            "gender": "F"
+          },
+          {
+            "name": "Esposito S.",
+            "gender": "M"
+          },
+          {
+            "name": "Fabbri T.",
+            "gender": "F"
+          },
+          {
+            "name": "Farina V.",
+            "gender": "M"
+          }
+        ],
+        "Lista G": [
+          {
+            "name": "Ferrara A.",
+            "gender": "F"
+          },
+          {
+            "name": "Fiore B.",
+            "gender": "M"
+          },
+          {
+            "name": "Gallo C.",
+            "gender": "F"
+          },
+          {
+            "name": "Gentile D.",
+            "gender": "M"
+          },
+          {
+            "name": "Giordano E.",
+            "gender": "F"
+          }
+        ],
+        "Lista H": [
+          {
+            "name": "Grasso F.",
+            "gender": "M"
+          },
+          {
+            "name": "Guerra G.",
+            "gender": "F"
+          },
+          {
+            "name": "Longo L.",
+            "gender": "M"
+          },
+          {
+            "name": "Lucchesi M.",
+            "gender": "F"
+          },
+          {
+            "name": "Mancini N.",
+            "gender": "M"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Centro",
+      "candidates": {
+        "Lista A": [
+          {
+            "name": "Mariani P.",
+            "gender": "M"
+          },
+          {
+            "name": "Martini R.",
+            "gender": "F"
+          },
+          {
+            "name": "Messina S.",
+            "gender": "M"
+          },
+          {
+            "name": "Monti T.",
+            "gender": "F"
+          },
+          {
+            "name": "Morelli V.",
+            "gender": "M"
+          }
+        ],
+        "Lista B": [
+          {
+            "name": "Negri A.",
+            "gender": "F"
+          },
+          {
+            "name": "Neri B.",
+            "gender": "M"
+          },
+          {
+            "name": "Orlando C.",
+            "gender": "F"
+          },
+          {
+            "name": "Palmieri D.",
+            "gender": "M"
+          },
+          {
+            "name": "Parisi E.",
+            "gender": "F"
+          }
+        ],
+        "Lista C": [
+          {
+            "name": "Pellegrini F.",
+            "gender": "M"
+          },
+          {
+            "name": "Piras G.",
+            "gender": "F"
+          },
+          {
+            "name": "Pozzi L.",
+            "gender": "M"
+          },
+          {
+            "name": "Ricci M.",
+            "gender": "F"
+          },
+          {
+            "name": "Riva N.",
+            "gender": "M"
+          }
+        ],
+        "Lista D": [
+          {
+            "name": "Rizzi P.",
+            "gender": "F"
+          },
+          {
+            "name": "Romano R.",
+            "gender": "M"
+          },
+          {
+            "name": "Ruggiero S.",
+            "gender": "F"
+          },
+          {
+            "name": "Russo T.",
+            "gender": "M"
+          },
+          {
+            "name": "Sala V.",
+            "gender": "F"
+          }
+        ],
+        "Lista E": [
+          {
+            "name": "Salvi A.",
+            "gender": "M"
+          },
+          {
+            "name": "Sanna B.",
+            "gender": "F"
+          },
+          {
+            "name": "Santoro C.",
+            "gender": "M"
+          },
+          {
+            "name": "Sartori D.",
+            "gender": "F"
+          },
+          {
+            "name": "Silvestri E.",
+            "gender": "M"
+          }
+        ],
+        "Lista F": [
+          {
+            "name": "Testa F.",
+            "gender": "F"
+          },
+          {
+            "name": "Valentini G.",
+            "gender": "M"
+          },
+          {
+            "name": "Vitale L.",
+            "gender": "F"
+          },
+          {
+            "name": "Zanetti M.",
+            "gender": "M"
+          },
+          {
+            "name": "Zanon N.",
+            "gender": "F"
+          }
+        ],
+        "Lista G": [
+          {
+            "name": "Basile P.",
+            "gender": "M"
+          },
+          {
+            "name": "Carbone R.",
+            "gender": "F"
+          },
+          {
+            "name": "Caruso S.",
+            "gender": "M"
+          },
+          {
+            "name": "Castelli T.",
+            "gender": "F"
+          },
+          {
+            "name": "Cirillo V.",
+            "gender": "M"
+          }
+        ],
+        "Lista H": [
+          {
+            "name": "Conte A.",
+            "gender": "F"
+          },
+          {
+            "name": "Cortese B.",
+            "gender": "M"
+          },
+          {
+            "name": "Damiani C.",
+            "gender": "F"
+          },
+          {
+            "name": "Fumagalli D.",
+            "gender": "M"
+          },
+          {
+            "name": "Gatti E.",
+            "gender": "F"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sud",
+      "candidates": {
+        "Lista A": [
+          {
+            "name": "Guidi F.",
+            "gender": "F"
+          },
+          {
+            "name": "Leonardi G.",
+            "gender": "M"
+          },
+          {
+            "name": "Lombardo L.",
+            "gender": "F"
+          },
+          {
+            "name": "Lorusso M.",
+            "gender": "M"
+          },
+          {
+            "name": "Marchetti N.",
+            "gender": "F"
+          }
+        ],
+        "Lista B": [
+          {
+            "name": "Mazza P.",
+            "gender": "M"
+          },
+          {
+            "name": "Melis R.",
+            "gender": "F"
+          },
+          {
+            "name": "Milani S.",
+            "gender": "M"
+          },
+          {
+            "name": "Montanari T.",
+            "gender": "F"
+          },
+          {
+            "name": "Moro V.",
+            "gender": "M"
+          }
+        ],
+        "Lista C": [
+          {
+            "name": "Pagano A.",
+            "gender": "F"
+          },
+          {
+            "name": "Pace B.",
+            "gender": "M"
+          },
+          {
+            "name": "Pastore C.",
+            "gender": "F"
+          },
+          {
+            "name": "Pepe D.",
+            "gender": "M"
+          },
+          {
+            "name": "Poli E.",
+            "gender": "F"
+          }
+        ],
+        "Lista D": [
+          {
+            "name": "Rota F.",
+            "gender": "M"
+          },
+          {
+            "name": "Sorrentino G.",
+            "gender": "F"
+          },
+          {
+            "name": "Tedesco L.",
+            "gender": "M"
+          },
+          {
+            "name": "Tosi M.",
+            "gender": "F"
+          },
+          {
+            "name": "Vergani N.",
+            "gender": "M"
+          }
+        ],
+        "Lista E": [
+          {
+            "name": "Zanella P.",
+            "gender": "F"
+          },
+          {
+            "name": "Agostini R.",
+            "gender": "M"
+          },
+          {
+            "name": "Bonetti S.",
+            "gender": "F"
+          },
+          {
+            "name": "Brambilla T.",
+            "gender": "M"
+          },
+          {
+            "name": "Cocco V.",
+            "gender": "F"
+          }
+        ],
+        "Lista F": [
+          {
+            "name": "Donato A.",
+            "gender": "M"
+          },
+          {
+            "name": "Ferraro B.",
+            "gender": "F"
+          },
+          {
+            "name": "Gallina C.",
+            "gender": "M"
+          },
+          {
+            "name": "Iannone D.",
+            "gender": "F"
+          },
+          {
+            "name": "Rossetti E.",
+            "gender": "M"
+          }
+        ],
+        "Lista G": [
+          {
+            "name": "Marchi F.",
+            "gender": "F"
+          },
+          {
+            "name": "Galvani G.",
+            "gender": "M"
+          },
+          {
+            "name": "Bellucci L.",
+            "gender": "F"
+          },
+          {
+            "name": "Fiorentino M.",
+            "gender": "M"
+          },
+          {
+            "name": "Grillo N.",
+            "gender": "F"
+          }
+        ],
+        "Lista H": [
+          {
+            "name": "Ferretti P.",
+            "gender": "M"
+          },
+          {
+            "name": "Rinaldini R.",
+            "gender": "F"
+          },
+          {
+            "name": "Serafini S.",
+            "gender": "M"
+          },
+          {
+            "name": "Tamburini T.",
+            "gender": "F"
+          },
+          {
+            "name": "Ughi V.",
+            "gender": "M"
+          }
+        ]
+      }
+    }
+  ]
+}
