@@ -2,7 +2,7 @@
 
 **eVoto** è una libreria Python per sistemi di voto elettronico in cui il voto rimane segreto e il risultato può essere verificato pubblicamente.
 
-Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. L'obiettivo è arrivare a una simulazione di un'elezione politica italiana con liste, coalizioni, capolista bloccato e fino a tre preferenze con vincolo di genere.
+Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. Oggi simula un'elezione politica italiana completa: liste, coalizioni, capolista bloccato, fino a tre preferenze con vincolo di genere, bacheca pubblica, scrutinio con premio di governabilità ed eletti. Restano da completare il verificatore indipendente, il registro pubblico in JSON e la cabina elettorale web.
 
 > [!WARNING]
 > eVoto è un progetto universitario e non è progettato per elezioni reali. Al momento utilizza un gruppo crittografico didattico di piccole dimensioni. I principali limiti sono riportati nella sezione [Sicurezza e limiti](#sicurezza-e-limiti).
@@ -13,6 +13,7 @@ Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.co
 - [Stato del progetto](#stato-del-progetto)
 - [Installazione](#installazione)
 - [Guida rapida: referendum sì/no](#guida-rapida-referendum-sìno)
+- [Guida rapida: elezione politica](#guida-rapida-elezione-politica)
 - [Struttura del repository](#struttura-del-repository)
 - [API principali](#api-principali)
 - [Test](#test)
@@ -37,11 +38,11 @@ flowchart LR
 | Fase | Cosa succede | Modulo |
 |---|---|---|
 | 1. Cerimonia delle chiavi | `n` garanti generano la chiave pubblica dell'elezione. La chiave segreta viene divisa tra loro e ne bastano `k` per la decifratura. | `garanti.py` |
-| 2. Voto | Le caselle della scheda vengono cifrate e accompagnate da prove che ne verificano la validità senza rivelare il contenuto. | `elgamal.py`, `prove.py` |
-| 3. Bacheca pubblica | Le schede cifrate vengono inserite in un registro a sola aggiunta, con un codice di tracciamento associato a ogni elettore. | `urna.py` (in sviluppo) |
+| 2. Voto | Le caselle della scheda vengono cifrate e accompagnate da prove che ne verificano la validità senza rivelare il contenuto. | `voto.py`, `scheda.py`, `elgamal.py`, `prove.py` |
+| 3. Bacheca pubblica | Le schede cifrate vengono inserite in un registro a sola aggiunta; ogni scheda riceve un codice di tracciamento concatenato ai precedenti. | `urna.py` |
 | 4. Conteggio omomorfico | I cifrati vengono combinati per ottenere la cifratura della somma dei voti. | `urna.py` |
 | 5. Decifratura a soglia | Almeno `k` garanti collaborano alla decifratura del totale e forniscono una prova del proprio contributo. | `decifratura.py` |
-| 6. Verifica | Il risultato e le prove possono essere verificati a partire dai dati pubblici. | `verifica/` (previsto) |
+| 6. Verifica e scrutinio | Dai totali si calcolano seggi ed eletti; risultato e prove possono essere verificati a partire dai dati pubblici. | `scrutinio.py`, `verifica/` (parziale) |
 
 ### Primitive crittografiche
 
@@ -70,7 +71,7 @@ Le prove vengono rese non interattive tramite **Fiat-Shamir**. Nell'hash vengono
 
 ### Scheda politica e preferenze
 
-La parte relativa alle elezioni politiche è ancora in sviluppo. Le regole previste sono:
+La scheda politica è implementata in `scheda.py`. Le sue regole sono:
 
 | Regola | Vincolo |
 |---|---|
@@ -84,9 +85,19 @@ Questi vincoli vengono tradotti in prove a conoscenza zero sui valori cifrati. I
 
 Un punto importante riguarda la segretezza delle preferenze. Se le singole schede venissero decifrate e pubblicate, una combinazione particolare di preferenze potrebbe rendere riconoscibile un voto e facilitare un attacco di tipo *Italian attack*. L'uso del conteggio omomorfico permette invece di decifrare solo i totali necessari allo scrutinio.
 
+### Bacheca e controllo del dispositivo
+
+Prima del deposito il dispositivo mostra l'impronta della scheda cifrata. L'elettore può depositarla oppure sprecarla: una scheda sprecata viene pubblicata insieme ai valori casuali usati per cifrarla, e chiunque può ricifrarla per controllare che il dispositivo abbia cifrato onestamente (sfida di Benaloh). La scheda sprecata non viene contata e l'elettore ne prepara una nuova.
+
+La bacheca rifiuta le schede identiche a una già pubblicata: senza questo controllo si potrebbe ricopiare la scheda di un altro elettore e votare come lui.
+
+### Scrutinio
+
+Lo scrutinio segue una versione semplificata e dichiarata della legge elettorale: soglie di sbarramento per liste e coalizioni, premio di governabilità, riparto con il metodo dei quozienti interi e dei più alti resti, distribuzione dei seggi tra le circoscrizioni ed eletti per capolista e preferenze. Tutti i parametri sono nel file di configurazione, quindi cambiare legge significa cambiare il file e non il codice. Il procedimento completo è nella sezione 46 della [specifica](docs/spec_f1.md).
+
 ## Stato del progetto
 
-Attualmente eVoto è utilizzabile come **libreria Python**. La demo da riga di comando e la cabina elettorale web sono ancora in sviluppo.
+eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando `demo.py`. La cabina elettorale web è ancora in sviluppo.
 
 | Modulo | Contenuto | Stato |
 |---|---|---|
@@ -95,11 +106,15 @@ Attualmente eVoto è utilizzabile come **libreria Python**. La demo da riga di c
 | `evoto/prove.py` | Prove di Schnorr, Chaum-Pedersen e OR generica | Completato |
 | `evoto/garanti.py` | Cerimonia delle chiavi, Shamir, Feldman e chiave pubblica congiunta | Completato |
 | `evoto/decifratura.py` | Decifratura a soglia, Lagrange e prove sulle share | Completato |
-| `evoto/urna.py` | Aggregazione omomorfica dei cifrati | Parziale: mancano bacheca, codici di tracciamento e cast-or-spoil |
-| `evoto/scheda.py` | Scheda politica e prove delle regole R1–R5 | Da fare |
-| `evoto/scrutinio.py` | Coalizioni, soglie, premio, riparto dei seggi ed eletti | Da fare |
+| `evoto/scheda.py` | Scheda politica e prove delle regole R1–R5 | Completato; limiti delle preferenze fissi a 3 e 2 per genere |
+| `evoto/configurazione.py` | Lettura della configurazione dell'elezione e layout delle schede | Completato |
+| `evoto/voto.py` | Dalla scelta dell'elettore alla scheda cifrata con le prove | Completato |
+| `evoto/urna.py` | Bacheca, codici di tracciamento, sfida di Benaloh, aventi diritto, conteggio e decifratura per circoscrizione | Completato |
+| `evoto/scrutinio.py` | Soglie, premio, riparto dei seggi, circoscrizioni ed eletti | Completato (modello semplificato) |
+| `evoto/simulazione.py` | Elezione simulata confrontata con il conteggio in chiaro | Completato |
+| `demo.py` | Elezione simulata da riga di comando (esperimento E1) | Completato |
 | `evoto/registro.py` | Lettura e scrittura del registro pubblico in JSON | Da fare |
-| `verifica/` | Verificatore indipendente | Da fare |
+| `verifica/` | Verificatore indipendente | Parziale: V1, V2, V3, V6 |
 | `cabina/` | Cabina elettorale e bacheca web dimostrative | Da fare |
 | `notebook/` | Notebook didattico con numeri piccoli | Da fare |
 
@@ -110,9 +125,11 @@ Attualmente eVoto è utilizzabile come **libreria Python**. La demo da riga di c
 - [x] Test incrociati con ElectionGuard: cifratura (T1), hash (T2), prove 0/1 (T3)
 - [x] Cerimonia delle chiavi e decifratura a soglia
 - [x] Referendum sì/no completo, dalla cerimonia al risultato
-- [ ] Scheda politica con le regole R1–R5
-- [ ] Bacheca pubblica, scrutinio e riparto dei seggi
-- [ ] Verificatore indipendente e test di manomissione
+- [x] Scheda politica con le regole R1–R5
+- [x] Bacheca pubblica, sfida di Benaloh, scrutinio e riparto dei seggi
+- [x] Elezione simulata confrontata con il conteggio in chiaro (esperimento E1)
+- [ ] Registro pubblico in JSON
+- [ ] Verificatore indipendente completo (oggi V1, V2, V3, V6) e test di manomissione
 - [ ] Test incrociato su un'elezione completa (T4)
 - [ ] Cabina elettorale web, notebook didattico e misure delle prestazioni
 
@@ -259,6 +276,125 @@ Sì: 3   No: 2
 
 Nessuna scheda viene decifrata singolarmente: viene decifrato solo il totale. Con due soli garanti la decifratura non è possibile; allo stesso modo, non è possibile costruire la prova per un valore non ammesso come `2`.
 
+## Guida rapida: elezione politica
+
+Il modo più veloce per vedere un'elezione completa è la demo:
+
+```bash
+uv run python demo.py
+```
+
+La demo usa la configurazione `config/elezione_esempio.json`: tre circoscrizioni, otto liste (sei in due coalizioni e due singole) e 30 seggi. Cento elettori per circoscrizione scelgono a caso lista e preferenze, alcuni sprecano una scheda per controllare il dispositivo, e al termine il risultato cifrato viene confrontato con un conteggio in chiaro delle stesse scelte:
+
+```text
+Riparto di 30 seggi
+  Coalizione Alfa    141 voti   17 seggi  <- premio
+  Coalizione Beta     97 voti    8 seggi
+  Lista C             41 voti    4 seggi
+  Lista H             15 voti    1 seggio
+...
+Confronto con il conteggio in chiaro
+  totali per circoscrizione: coincidono
+  seggi ed eletti:           coincidono
+```
+
+| Opzione | Significato | Default |
+|---|---|---|
+| `--elettori` | elettori per circoscrizione | 100 |
+| `--garanti` | numero di garanti | 5 |
+| `--quorum` | garanti necessari per decifrare | 3 |
+| `--presenti` | garanti presenti allo spoglio | `1,3,5` |
+| `--seme` | seme delle scelte casuali degli elettori | 2026 |
+| `--config` | file di configurazione | `config/elezione_esempio.json` |
+
+Lo stesso percorso si può seguire con la libreria. Questo esempio vota in una circoscrizione e ne decifra i totali:
+
+```python
+from evoto.configurazione import build_ballot_layout, load_election_config
+from evoto.garanti import run_key_ceremony
+from evoto.gruppo import TEST_PARAMS
+from evoto.urna import (
+    cast_ballot,
+    create_bulletin_board,
+    decrypt_district_tally,
+    spoil_ballot,
+    tally_district,
+    verify_board_chain,
+)
+from evoto.voto import VoterChoice, prepare_ballot
+
+params = TEST_PARAMS
+config = load_election_config("config/elezione_esempio.json")
+
+# 1. Cerimonia delle chiavi.
+ceremony = run_key_ceremony(
+    guardian_count=5,
+    quorum=3,
+    params=params,
+    election_id=config.election_id,
+)
+public_key = ceremony.joint_public_key
+context = ceremony.extended_base_hash
+
+# 2. Circoscrizione Nord: le caselle di preferenza 4 e 5 sono
+#    Bruno E. e Costa D. della Lista B (indice 1).
+district = 0
+layout = build_ballot_layout(config, district)
+board = create_bulletin_board(context, params)
+
+choices = [
+    VoterChoice(list_index=1, preferences=(4, 5)),   # Lista B e due preferenze
+    VoterChoice(list_index=None, preferences=(1,)),  # senza lista: vale per la A
+    VoterChoice(list_index=None),                    # scheda bianca
+]
+
+for choice in choices:
+    prepared = prepare_ballot(
+        layout, district, choice, public_key, params, context
+    )
+    board = cast_ballot(
+        board, district, layout, prepared.ballot, prepared.proofs,
+        public_key, params,
+    )
+
+# 3. Sfida di Benaloh: una scheda sprecata viene pubblicata con i suoi
+#    nonce, così chiunque può controllare che il dispositivo cifri onestamente.
+challenged = prepare_ballot(
+    layout, district, choices[0], public_key, params, context
+)
+board = spoil_ballot(
+    board, district, layout, challenged.ballot, challenged.proofs,
+    challenged.witness, public_key, params,
+)
+
+assert verify_board_chain(board, params)
+
+# 4-5. Conteggio omomorfico e decifratura a soglia della circoscrizione.
+result = decrypt_district_tally(
+    tally=tally_district(board, district, layout, params),
+    secret_shares=ceremony.secret_shares,
+    present_guardians=(1, 3, 5),
+    records=ceremony.records,
+    quorum=3,
+    params=params,
+    extended_base_hash=context,
+)
+
+print("Voti di lista:  ", result.list_votes)
+print("Schede bianche: ", result.blank_votes)
+print("Preferenze A, B:", result.preference_votes[:8])
+```
+
+Output atteso:
+
+```text
+Voti di lista:   (1, 1, 0, 0, 0, 0, 0, 0)
+Schede bianche:  1
+Preferenze A, B: (0, 1, 0, 0, 1, 1, 0, 0)
+```
+
+La scheda sprecata non compare nei totali. Il formato del file di configurazione è descritto nella sezione 42 della [specifica](docs/spec_f1.md).
+
 ## Struttura del repository
 
 ```text
@@ -269,11 +405,20 @@ evoto-cryptography/
 │   ├── prove.py                # prove a conoscenza zero
 │   ├── garanti.py              # cerimonia delle chiavi
 │   ├── decifratura.py          # decifratura a soglia
-│   └── urna.py                 # conteggio omomorfico
+│   ├── scheda.py               # scheda politica e regole R1-R5
+│   ├── configurazione.py       # configurazione dell'elezione
+│   ├── voto.py                 # dispositivo di voto
+│   ├── urna.py                 # bacheca, conteggio e spoglio per circoscrizione
+│   ├── scrutinio.py            # seggi ed eletti
+│   └── simulazione.py          # elezione simulata (esperimento E1)
+├── verifica/
+│   └── verifica.py             # verificatore indipendente (non importa evoto)
+├── config/
+│   └── elezione_esempio.json   # liste, coalizioni, candidati, soglie, premio
 ├── test/                       # test unitari, di integrazione e incrociati
 ├── docs/
 │   └── spec_f1.md              # specifica tecnica condivisa
-├── demo.py                     # elezione simulata da riga di comando (in sviluppo)
+├── demo.py                     # elezione simulata da riga di comando
 ├── pyproject.toml              # metadati e dipendenze
 ├── uv.lock                     # versioni esatte delle dipendenze
 └── .python-version             # versione di Python usata dal progetto
@@ -334,11 +479,55 @@ Tutte le funzioni ricevono esplicitamente i parametri del gruppo (`params`) e la
 | `combine_decryption_shares` | Combina le share dei garanti |
 | `decrypt_tally(tally, shares, quorum, params, max_total)` | Restituisce il totale in chiaro |
 
+### `evoto.scheda`
+
+| Nome | Descrizione |
+|---|---|
+| `BallotLayout`, `PreferenceMetadata` | Struttura pubblica della scheda: liste e, per ogni preferenza, lista e genere |
+| `EncryptedBallot`, `BallotWitness`, `BallotProofs` | Scheda cifrata, dati privati del votante, prove R1–R5 |
+| `prove_ballot`, `verify_ballot` | Prove complete di una scheda e loro verifica |
+
+### `evoto.configurazione`
+
+| Nome | Descrizione |
+|---|---|
+| `load_election_config(path)` | Legge e valida il file JSON dell'elezione |
+| `build_ballot_layout(config, district_index)` | Layout della scheda di una circoscrizione |
+| `preference_candidates(config, district_index)` | Candidato di ogni casella di preferenza |
+
+### `evoto.voto`
+
+| Nome | Descrizione |
+|---|---|
+| `VoterChoice(list_index, preferences)` | Scelta dell'elettore; senza lista né preferenze è una scheda bianca |
+| `prepare_ballot(layout, district_index, choice, public_key, params, extended_base_hash)` | Scheda cifrata con prove, impronta e dati per un'eventuale sfida |
+
 ### `evoto.urna`
 
 | Nome | Descrizione |
 |---|---|
+| `create_bulletin_board`, `cast_ballot`, `spoil_ballot` | Bacheca, deposito e scheda sprecata |
+| `verify_board_chain`, `find_entry` | Controllo della catena dei codici e ricerca del proprio codice |
+| `create_voter_roll`, `cast_voter_ballot` | Aventi diritto e deposito con controllo del voto unico |
+| `tally_district`, `decrypt_district_tally` | Totali cifrati e decifratura di una circoscrizione |
 | `aggregate_ciphertexts(ciphertexts, params)` | Aggrega i cifrati di un insieme di schede |
+
+### `evoto.scrutinio`
+
+| Nome | Descrizione |
+|---|---|
+| `run_scrutiny(config, results)` | Soglie, premio, seggi ed eletti a partire dai totali |
+| `largest_remainder(votes, seats)` | Metodo dei quozienti interi e dei più alti resti |
+
+### `evoto.simulazione`
+
+| Nome | Descrizione |
+|---|---|
+| `simulate_election(...)` | Elezione completa con elettori simulati e confronto con il conteggio in chiaro |
+
+### `verifica.verifica`
+
+Verificatore indipendente: non importa `evoto` e rifà i controlli con la sola libreria standard e `gmpy2`. Oggi copre parametri (V1), chiavi dei garanti (V2), prove della scheda (V3) e decifratura (V6).
 
 ## Test
 
@@ -352,6 +541,8 @@ I test comprendono:
 
 - test unitari per i singoli moduli, inclusi casi di manomissione e input non validi;
 - test di integrazione del referendum, dalla cerimonia delle chiavi al risultato;
+- test di integrazione di un'elezione politica completa (`test_elezione.py`), confrontata con il conteggio in chiaro;
+- test del verificatore indipendente (`test_verifica.py`);
 - test incrociati con ElectionGuard per verificare la compatibilità di cifratura, hash e prove 0/1.
 
 ### Test con ElectionGuard
@@ -367,7 +558,7 @@ cd ..
 uv run pytest test/test_cross_electionguard.py -v
 ```
 
-Su Windows il percorso dell'interprete è `.venv\\Scripts\\python.exe`.
+Su Windows il percorso dell'interprete è `.venv\Scripts\python.exe`.
 
 I test controllano in particolare:
 
@@ -386,6 +577,9 @@ eVoto è un progetto didattico e non deve essere considerato pronto per un uso r
 - **Parametri crittografici.** È disponibile solo `TEST_PARAMS`, volutamente piccolo. I parametri previsti a 2048 bit con sottogruppo da 256 bit non sono ancora inclusi.
 - **Garanti simulati.** I garanti sono gestiti nello stesso programma e le share passano in memoria. In un sistema reale dovrebbero essere entità separate, con dispositivi e canali protetti. Di conseguenza, `KeyCeremony.secret_shares` contiene attualmente tutte le share insieme.
 - **Gestione degli errori nella cerimonia.** Una share non valida interrompe la cerimonia invece di portare all'esclusione del garante.
+- **Scrutinio semplificato.** Il riparto segue le regole principali ma non tutte quelle della legge vera: per esempio il numero di seggi di ogni circoscrizione non è fissato in anticipo e i pareggi si risolvono con regole semplici e dichiarate.
+- **Limiti delle preferenze.** Oggi la scheda accetta solo 3 preferenze e 2 per genere; una configurazione con limiti diversi viene rifiutata.
+- **Schede sprecate.** Una scheda sprecata è pubblica per costruzione: serve solo a controllare il dispositivo e non viene mai contata.
 - **Modello di avversario.** La generazione congiunta della chiave con Feldman considera garanti *honest-but-curious*; un garante attivamente disonesto può influenzare in parte la distribuzione della chiave pubblica.
 - **Aspetti non implementati.** Restano fuori dallo scope la sicurezza della rete e dell'interfaccia web, l'identificazione reale degli elettori, la resistenza alla coercizione nel voto da remoto e la completa aderenza giuridica del riparto dei seggi.
 - **Minaccia quantistica.** La sicurezza si basa sul problema del logaritmo discreto, che non è resistente a un computer quantistico sufficientemente potente.
@@ -413,7 +607,9 @@ Convenzioni del progetto:
 - D. Chaum, T. P. Pedersen, *Wallet databases with observers*, CRYPTO 1992
 - R. Cramer, I. Damgård, B. Schoenmakers, *Proofs of partial knowledge and simplified design of witness hiding protocols*, CRYPTO 1994
 - R. Cramer, R. Gennaro, B. Schoenmakers, *A secure and optimally efficient multi-authority election scheme*, EUROCRYPT 1997
+- J. Benaloh, *Simple verifiable elections*, EVT 2006
 - B. Adida, *Helios: Web-based open-audit voting*, USENIX Security 2008
+- V. Cortier, B. Smyth, *Attacking and fixing Helios: an analysis of ballot secrecy*, IEEE CSF 2011
 - D. Bernhard, O. Pereira, B. Warinschi, *How not to prove yourself: pitfalls of the Fiat-Shamir heuristic and applications to Helios*, ASIACRYPT 2012
 - R. Gennaro, S. Jarecki, H. Krawczyk, T. Rabin, *Secure distributed key generation for discrete-log based cryptosystems*, EUROCRYPT 1999
 
