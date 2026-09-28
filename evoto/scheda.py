@@ -1,8 +1,10 @@
 """
 Modello della scheda politica del progetto evoto.
 
-Questo modulo conterrà:
+Questo modulo contiene:
+- la struttura pubblica della scheda elettorale;
 - la rappresentazione della scheda cifrata;
+- i dati privati necessari alla generazione delle prove;
 - le prove di validità R1-R5;
 - la verifica crittografica delle regole della scheda.
 
@@ -11,6 +13,7 @@ elgamal.py e prove.py, senza ridefinirle.
 """
 
 from dataclasses import dataclass
+
 from evoto.elgamal import (
     Ciphertext,
     divide_ciphertexts,
@@ -25,14 +28,53 @@ from evoto.prove import (
 
 
 @dataclass(frozen=True)
+class PreferenceMetadata:
+    """
+    Descrive una casella di preferenza della scheda.
+
+    list_index indica la lista a cui appartiene il candidato.
+    gender identifica il genere usato dal vincolo R5.
+    """
+
+    list_index: int
+    gender: str
+
+
+@dataclass(frozen=True)
+class BallotLayout:
+    """
+    Descrive la struttura pubblica della scheda elettorale.
+
+    I metadati derivano dalla configurazione dell'elezione
+    e non possono essere scelti dal votante.
+    """
+
+    list_count: int
+    preference_metadata: tuple[PreferenceMetadata, ...]
+
+    def __post_init__(self) -> None:
+        """
+        Verifica la coerenza strutturale della configurazione.
+        """
+
+        if self.list_count < 1:
+            raise ValueError(
+                "La scheda deve contenere almeno una lista."
+            )
+
+        for metadata in self.preference_metadata:
+            if not 0 <= metadata.list_index < self.list_count:
+                raise ValueError(
+                    "L'indice della lista associata alla preferenza non è valido."
+                )
+
+
+@dataclass(frozen=True)
 class EncryptedBallot:
     """
     Rappresenta una scheda politica cifrata.
 
-    Contiene soltanto dati pubblici:
-    - un ciphertext per ogni lista;
-    - un ciphertext per la scheda bianca;
-    - un ciphertext per ogni candidato selezionabile.
+    Contiene soltanto i ciphertext prodotti dal votante.
     """
 
     list_ciphertexts: tuple[Ciphertext, ...]
@@ -71,7 +113,489 @@ class BallotProofs:
     r3_proofs: tuple[ValueSetProof, ...]
     r4_proof: ValueSetProof
     r5_proofs: tuple[ValueSetProof, ...]
-    
+
+
+@dataclass(frozen=True)
+class BallotWitness:
+    """
+    Contiene i dati privati usati per generare le prove della scheda.
+
+    Plaintext e nonce servono soltanto durante la costruzione
+    delle prove e non fanno parte della scheda pubblica.
+    """
+
+    list_plaintexts: tuple[int, ...]
+    blank_plaintext: int
+    preference_plaintexts: tuple[int, ...]
+
+    list_nonces: tuple[int, ...]
+    blank_nonce: int
+    preference_nonces: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        """
+        Verifica che ogni plaintext abbia il proprio nonce.
+        """
+
+        if len(self.list_plaintexts) != len(self.list_nonces):
+            raise ValueError(
+                "Ogni lista deve avere il proprio nonce."
+            )
+
+        if len(self.preference_plaintexts) != len(
+            self.preference_nonces
+        ):
+            raise ValueError(
+                "Ogni preferenza deve avere il proprio nonce."
+            )
+
+
+def _validate_ballot_alignment(
+    layout: BallotLayout,
+    ballot: EncryptedBallot,
+    witness: BallotWitness,
+) -> None:
+    """
+    Verifica che configurazione, scheda cifrata e witness
+    descrivano la stessa struttura.
+    """
+
+    if len(ballot.list_ciphertexts) != layout.list_count:
+        raise ValueError(
+            "Il numero di liste cifrate non coincide con la configurazione."
+        )
+
+    if len(witness.list_plaintexts) != layout.list_count:
+        raise ValueError(
+            "Il numero di liste del witness non coincide con la configurazione."
+        )
+
+    preference_count = len(layout.preference_metadata)
+
+    if len(ballot.preference_ciphertexts) != preference_count:
+        raise ValueError(
+            "Il numero di preferenze cifrate non coincide con la configurazione."
+        )
+
+    if len(witness.preference_plaintexts) != preference_count:
+        raise ValueError(
+            "Il numero di preferenze del witness non coincide con la configurazione."
+        )
+
+
+def _prove_ballot_r1_r2(
+    layout: BallotLayout,
+    ballot: EncryptedBallot,
+    witness: BallotWitness,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> tuple[tuple[ValueSetProof, ...], ValueSetProof]:
+    """
+    Genera le prove R1 e R2 per una scheda completa.
+    """
+
+    _validate_ballot_alignment(
+        layout,
+        ballot,
+        witness,
+    )
+
+    all_plaintexts = (
+        witness.list_plaintexts
+        + (witness.blank_plaintext,)
+        + witness.preference_plaintexts
+    )
+
+    all_nonces = (
+        witness.list_nonces
+        + (witness.blank_nonce,)
+        + witness.preference_nonces
+    )
+
+    r1_proofs = tuple(
+        prove_r1(
+            ciphertext=ciphertext,
+            plaintext=plaintext,
+            nonce=nonce,
+            public_key=public_key,
+            params=params,
+            context=context,
+        )
+        for ciphertext, plaintext, nonce in zip(
+            ballot.all_ciphertexts(),
+            all_plaintexts,
+            all_nonces,
+        )
+    )
+
+    r2_ciphertexts = (
+        ballot.list_ciphertexts
+        + (ballot.blank_ciphertext,)
+    )
+
+    r2_plaintexts = (
+        witness.list_plaintexts
+        + (witness.blank_plaintext,)
+    )
+
+    r2_nonces = (
+        witness.list_nonces
+        + (witness.blank_nonce,)
+    )
+
+    r2_proof = prove_r2(
+        ciphertexts=r2_ciphertexts,
+        plaintexts=r2_plaintexts,
+        nonces=r2_nonces,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+    return r1_proofs, r2_proof
+
+
+def _prove_ballot_r3(
+    layout: BallotLayout,
+    ballot: EncryptedBallot,
+    witness: BallotWitness,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> tuple[ValueSetProof, ...]:
+    """
+    Genera le prove R3 per tutte le preferenze della scheda.
+    """
+
+    _validate_ballot_alignment(
+        layout,
+        ballot,
+        witness,
+    )
+
+    proofs = []
+
+    for index, metadata in enumerate(
+        layout.preference_metadata
+    ):
+        list_index = metadata.list_index
+
+        proof = prove_r3(
+            list_ciphertext=ballot.list_ciphertexts[
+                list_index
+            ],
+            preference_ciphertext=(
+                ballot.preference_ciphertexts[index]
+            ),
+            list_plaintext=witness.list_plaintexts[
+                list_index
+            ],
+            preference_plaintext=(
+                witness.preference_plaintexts[index]
+            ),
+            list_nonce=witness.list_nonces[
+                list_index
+            ],
+            preference_nonce=(
+                witness.preference_nonces[index]
+            ),
+            public_key=public_key,
+            params=params,
+            context=context,
+        )
+
+        proofs.append(proof)
+
+    return tuple(proofs)
+
+
+def _prove_ballot_r4(
+    layout: BallotLayout,
+    ballot: EncryptedBallot,
+    witness: BallotWitness,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> ValueSetProof:
+    """
+    Genera la prova R4 per l'intera scheda.
+    """
+
+    _validate_ballot_alignment(
+        layout,
+        ballot,
+        witness,
+    )
+
+    return prove_r4(
+        preference_ciphertexts=ballot.preference_ciphertexts,
+        preference_plaintexts=witness.preference_plaintexts,
+        preference_nonces=witness.preference_nonces,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+
+def _group_preference_indices_by_gender(
+    layout: BallotLayout,
+) -> tuple[tuple[int, ...], ...]:
+    """
+    Raggruppa gli indici delle preferenze in base al genere.
+
+    L'ordine dei gruppi segue la prima comparsa
+    di ciascun genere nella configurazione.
+    """
+
+    groups: dict[str, list[int]] = {}
+
+    for index, metadata in enumerate(
+        layout.preference_metadata
+    ):
+        groups.setdefault(
+            metadata.gender,
+            [],
+        ).append(index)
+
+    return tuple(
+        tuple(indices)
+        for indices in groups.values()
+    )
+
+
+def _prove_ballot_r5(
+    layout: BallotLayout,
+    ballot: EncryptedBallot,
+    witness: BallotWitness,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> tuple[ValueSetProof, ...]:
+    """
+    Genera una prova R5 per ciascun genere presente nella scheda.
+    """
+
+    _validate_ballot_alignment(
+        layout,
+        ballot,
+        witness,
+    )
+
+    proofs = []
+
+    for indices in _group_preference_indices_by_gender(
+        layout
+    ):
+        gender_ciphertexts = tuple(
+            ballot.preference_ciphertexts[index]
+            for index in indices
+        )
+
+        gender_plaintexts = tuple(
+            witness.preference_plaintexts[index]
+            for index in indices
+        )
+
+        gender_nonces = tuple(
+            witness.preference_nonces[index]
+            for index in indices
+        )
+
+        proof = prove_r5(
+            gender_ciphertexts=gender_ciphertexts,
+            gender_plaintexts=gender_plaintexts,
+            gender_nonces=gender_nonces,
+            public_key=public_key,
+            params=params,
+            context=context,
+        )
+
+        proofs.append(proof)
+
+    return tuple(proofs)
+
+
+def prove_ballot(
+    layout: BallotLayout,
+    ballot: EncryptedBallot,
+    witness: BallotWitness,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> BallotProofs:
+    """
+    Genera tutte le prove R1-R5 di una scheda politica.
+    """
+
+    _validate_ballot_alignment(
+        layout,
+        ballot,
+        witness,
+    )
+
+    r1_proofs, r2_proof = _prove_ballot_r1_r2(
+        layout=layout,
+        ballot=ballot,
+        witness=witness,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+    r3_proofs = _prove_ballot_r3(
+        layout=layout,
+        ballot=ballot,
+        witness=witness,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+    r4_proof = _prove_ballot_r4(
+        layout=layout,
+        ballot=ballot,
+        witness=witness,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+    r5_proofs = _prove_ballot_r5(
+        layout=layout,
+        ballot=ballot,
+        witness=witness,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+    return BallotProofs(
+        r1_proofs=r1_proofs,
+        r2_proof=r2_proof,
+        r3_proofs=r3_proofs,
+        r4_proof=r4_proof,
+        r5_proofs=r5_proofs,
+    )
+
+
+def verify_ballot(
+    layout: BallotLayout,
+    ballot: EncryptedBallot,
+    proofs: BallotProofs,
+    public_key: int,
+    params: GroupParameters,
+    context: int,
+) -> bool:
+    """
+    Verifica tutte le prove R1-R5 di una scheda politica.
+    """
+
+    if len(ballot.list_ciphertexts) != layout.list_count:
+        return False
+
+    if len(ballot.preference_ciphertexts) != len(
+        layout.preference_metadata
+    ):
+        return False
+
+    all_ciphertexts = ballot.all_ciphertexts()
+
+    if len(proofs.r1_proofs) != len(all_ciphertexts):
+        return False
+
+    if len(proofs.r3_proofs) != len(
+        ballot.preference_ciphertexts
+    ):
+        return False
+
+    gender_groups = _group_preference_indices_by_gender(
+        layout
+    )
+
+    if len(proofs.r5_proofs) != len(gender_groups):
+        return False
+
+    r1_valid = all(
+        verify_r1(
+            ciphertext=ciphertext,
+            proof=proof,
+            public_key=public_key,
+            params=params,
+            context=context,
+        )
+        for ciphertext, proof in zip(
+            all_ciphertexts,
+            proofs.r1_proofs,
+        )
+    )
+
+    r2_valid = verify_r2(
+        ciphertexts=(
+            ballot.list_ciphertexts
+            + (ballot.blank_ciphertext,)
+        ),
+        proof=proofs.r2_proof,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+    r3_valid = all(
+        verify_r3(
+            list_ciphertext=ballot.list_ciphertexts[
+                metadata.list_index
+            ],
+            preference_ciphertext=(
+                ballot.preference_ciphertexts[index]
+            ),
+            proof=proofs.r3_proofs[index],
+            public_key=public_key,
+            params=params,
+            context=context,
+        )
+        for index, metadata in enumerate(
+            layout.preference_metadata
+        )
+    )
+
+    r4_valid = verify_r4(
+        preference_ciphertexts=(
+            ballot.preference_ciphertexts
+        ),
+        proof=proofs.r4_proof,
+        public_key=public_key,
+        params=params,
+        context=context,
+    )
+
+    r5_valid = all(
+        verify_r5(
+            gender_ciphertexts=tuple(
+                ballot.preference_ciphertexts[index]
+                for index in indices
+            ),
+            proof=proof,
+            public_key=public_key,
+            params=params,
+            context=context,
+        )
+        for indices, proof in zip(
+            gender_groups,
+            proofs.r5_proofs,
+        )
+    )
+
+    return all(
+        (
+            r1_valid,
+            r2_valid,
+            r3_valid,
+            r4_valid,
+            r5_valid,
+        )
+    )
+
 
 def prove_r1(
     ciphertext: Ciphertext,
