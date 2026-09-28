@@ -1,6 +1,6 @@
 # eVoto — Specifica tecnica condivisa F1
 
-**Versione:** 0.2  
+**Versione:** 0.3  
 **Progetto:** Voto elettronico verificabile per elezioni politiche  
 **Corso:** Crittografia — LM Sicurezza Informatica, Università degli Studi di Milano  
 **Componenti del gruppo:**
@@ -556,6 +556,8 @@ verify_value_in_set(
 I nomi e i dettagli potranno essere affinati durante F2, ma il principio non deve cambiare senza accordo tra A e B.
 
 Il formato della challenge, compatibile con ElectionGuard nel caso 0/1 (T3), è fissato nella sezione 36.
+
+Aggiornamento v0.3: `prove_value_in_set` accetta un nonce compreso tra `0` e `q - 1`. Serve per i cifrati derivati delle regole R2-R5, la cui randomness è una somma o una differenza di nonce modulo `q` e può valere `0`. `encrypt` continua invece a richiedere un nonce tra `1` e `q - 1` per ogni cifratura nuova.
 
 ---
 
@@ -1159,6 +1161,8 @@ Il tipo `Guardian`, che contiene coefficienti, share ricevute e share aggregata,
 
 Resta previsto `ValueSetProof` per la prova OR (Persona A).
 
+Aggiornamento v0.3: `ValueSetProof` è implementato in `prove.py`. La cerimonia simulata restituisce il tipo `KeyCeremony` (`garanti.py`), che contiene i dati pubblici della cerimonia e, solo perché i garanti sono simulati in un unico programma, le loro share segrete. I tipi della scheda politica sono descritti nella sezione 40, quelli della bacheca e dello spoglio nelle sezioni 43, 44 e 45.
+
 Quando uno di questi tipi diventa dipendenza tra Persona A e Persona B, la sua struttura deve essere concordata prima del merge.
 
 ---
@@ -1369,6 +1373,8 @@ e quando questa specifica è stata revisionata e mergiata in `main`.
 ---
 
 # 34. Passo successivo
+
+Sezione storica, scritta al termine di F1. Lo stato aggiornato del progetto è nella sezione 48.
 
 Dopo il completamento di F1:
 
@@ -1670,9 +1676,480 @@ a = 910    b = 1033    c = H(744, 1, 4, 2502, 1196, 60, 910, 1033) = 524    z = 
 
 ---
 
-# 39. Storico delle versioni
+# 39. Aggiornamento v0.3
+
+Le sezioni 40-48 documentano il lavoro successivo a F3:
+
+- sezione 40: la scheda politica di F4 (Persona A);
+- sezione 41: il nucleo del verificatore indipendente (Persona A);
+- sezioni 42-46: F5 (Persona B), cioè configurazione, voto, bacheca, spoglio e scrutinio;
+- sezione 47: i dati pubblici che il registro deve contenere;
+- sezione 48: lo stato del progetto.
+
+Il verificatore non importa `evoto`: le formule e gli ordini scritti qui sono l'unico riferimento comune tra chi produce i dati e chi li controlla.
+
+---
+
+# 40. Scheda politica (F4)
+
+Modulo: `evoto/scheda.py` (Persona A).
+
+## Tipi
+
+```python
+@dataclass(frozen=True)
+class PreferenceMetadata:
+    list_index: int      # lista a cui appartiene la casella
+    gender: str          # genere usato da R5
+
+
+@dataclass(frozen=True)
+class BallotLayout:
+    list_count: int
+    preference_metadata: tuple[PreferenceMetadata, ...]
+
+
+@dataclass(frozen=True)
+class EncryptedBallot:
+    list_ciphertexts: tuple[Ciphertext, ...]
+    blank_ciphertext: Ciphertext
+    preference_ciphertexts: tuple[Ciphertext, ...]
+
+
+@dataclass(frozen=True)
+class BallotWitness:          # privato del votante
+    list_plaintexts: tuple[int, ...]
+    blank_plaintext: int
+    preference_plaintexts: tuple[int, ...]
+    list_nonces: tuple[int, ...]
+    blank_nonce: int
+    preference_nonces: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class BallotProofs:
+    r1_proofs: tuple[ValueSetProof, ...]
+    r2_proof: ValueSetProof
+    r3_proofs: tuple[ValueSetProof, ...]
+    r4_proof: ValueSetProof
+    r5_proofs: tuple[ValueSetProof, ...]
+```
+
+`BallotLayout` viene dalla configurazione ufficiale (sezione 42): i metadati delle preferenze non sono mai scelti dal votante.
+
+## Ordine canonico
+
+I cifrati di una scheda seguono sempre quest'ordine:
+
+```text
+liste (indice 0, ..., L - 1), scheda bianca, preferenze (ordine del layout)
+```
+
+È l'ordine di `EncryptedBallot.all_ciphertexts()` e vale anche per il witness, l'impronta della scheda (sezione 43) e i totali di una circoscrizione (sezione 45).
+
+## Prove
+
+Tutte le prove sono prove OR (sezione 16) con contesto `Q_bar`:
+
+| Prove | Cifrato su cui si dimostra | Valori ammessi |
+|---|---|---|
+| `r1_proofs[k]` | k-esimo cifrato in ordine canonico | `(0, 1)` |
+| `r2_proof` | prodotto dei cifrati delle liste e della scheda bianca | `(1,)` |
+| `r3_proofs[k]` | `lista[metadata[k].list_index] / preferenza[k]` | `(0, 1)` |
+| `r4_proof` | prodotto di tutte le preferenze | `(0, 1, 2, 3)` |
+| `r5_proofs[g]` | prodotto delle preferenze del gruppo di genere `g` | `(0, 1, 2)` |
+
+I gruppi di genere seguono l'ordine della prima comparsa di ciascun genere nel layout.
+
+La randomness di un cifrato derivato è la somma (o la differenza, per R3) dei nonce modulo `q` e può valere `0` (sezione 16).
+
+## Limiti delle preferenze
+
+Oggi il massimo di 3 preferenze (R4) e di 2 per genere (R5) è scritto nel codice, sia in `scheda.py` sia nel verificatore.
+
+Proposta per Persona A: aggiungere a `BallotLayout` i campi `max_preferences` e `max_preferences_per_gender` e usarli per costruire i valori ammessi, come chiede la sezione 17. Fino ad allora `configurazione.py` rifiuta configurazioni con limiti diversi (sezione 42).
+
+---
+
+# 41. Verificatore indipendente (nucleo)
+
+Modulo: `verifica/verifica.py` (Persona A).
+
+Il verificatore usa solo la libreria standard di Python e `gmpy2` e non importa `evoto`. Alcune formule di `garanti.py`, `decifratura.py` e `prove.py` sono quindi riscritte di proposito.
+
+Convenzioni sui dati:
+
+```text
+cifrato:           (alpha, beta)
+ramo di prova OR:  (commitment_1, commitment_2, challenge, response)
+```
+
+Controlli già implementati:
+
+```text
+V1 parametri del gruppo e chiave pubblica
+V2 prove di Schnorr sugli impegni e chiave pubblica congiunta
+V3 prove OR e regole R2-R5 sui cifrati derivati
+V6 prove Chaum-Pedersen delle share, chiavi di verifica V_l, Lagrange, combinazione
+```
+
+Controlli che dipendono da F5 e dal formato del registro:
+
+```text
+V4 catena dei codici di tracciamento        sezione 44
+V5 aggregazione delle schede CAST           sezione 45
+V7 totali decifrati                         sezione 45
+V8 scrutinio, seggi ed eletti               sezione 46
+parser del registro e orchestrazione V1-V8  sezione 47
+```
+
+---
+
+# 42. Configurazione dell'elezione
+
+Modulo: `evoto/configurazione.py` (Persona B).
+File di esempio: `config/elezione_esempio.json`.
+
+Cambiare legge elettorale significa cambiare questo file, non il codice.
+
+## Formato
+
+```json
+{
+  "name": "Elezione politica di esempio",
+  "election_id": 1,
+  "seats": 30,
+  "rules": {
+    "max_preferences": 3,
+    "max_preferences_per_gender": 2,
+    "list_threshold_percent": 3,
+    "coalition_threshold_percent": 10,
+    "bonus_threshold_percent": 42,
+    "bonus_seats_percent": 55
+  },
+  "lists": [
+    {"name": "Lista A", "coalition": "Coalizione Alfa"},
+    {"name": "Lista C", "coalition": null}
+  ],
+  "districts": [
+    {
+      "name": "Nord",
+      "candidates": {
+        "Lista A": [
+          {"name": "Ferri A.", "gender": "M"},
+          {"name": "Galli M.", "gender": "M"}
+        ],
+        "Lista C": [
+          {"name": "Moretti V.", "gender": "M"}
+        ]
+      }
+    }
+  ]
+}
+```
+
+Regole:
+
+- l'indice di una lista è la sua posizione in `lists`;
+- le coalizioni sono ricavate dal campo `coalition`, nell'ordine della prima comparsa; `null` indica una lista non coalizzata;
+- ogni circoscrizione ha candidati per tutte e sole le liste;
+- il primo candidato di ogni lista è il capolista bloccato, senza casella di preferenza; ogni altro candidato ha una casella;
+- le percentuali sono convertite in frazioni esatte (`2.5` diventa `1/40`), senza arrotondamenti in virgola mobile;
+- `election_id` è l'identificativo `e` del contesto `Q` (sezione 35).
+
+## Caselle di preferenza e layout
+
+L'ordine delle caselle di preferenza di una circoscrizione è: lista dopo lista, nell'ordine di `lists`, e dentro ogni lista i candidati dalla posizione 1 in poi. La casella `k` corrisponde quindi alla coppia `(indice della lista, posizione del candidato)` restituita da `preference_candidates`.
+
+`build_ballot_layout` costruisce il `BallotLayout` della circoscrizione con lo stesso ordine e il genere di ogni candidato.
+
+Finché `scheda.py` ha i limiti fissi (sezione 40), `build_ballot_layout` rifiuta configurazioni con limiti diversi da 3 preferenze e 2 per genere.
+
+## Configurazione di esempio
+
+Tre circoscrizioni (Nord, Centro, Sud), 30 seggi, otto liste: la Coalizione Alfa (liste A, B, D), la Coalizione Beta (liste E, F, G) e due liste singole (C, H). Ogni lista ha il capolista e quattro candidati in ogni circoscrizione. Nella circoscrizione Nord le liste A, B e C riprendono l'esempio della proposta di progetto. Nomi e liste sono inventati.
+
+Le soglie e il premio sono valori illustrativi, da allineare al testo definitivo della legge.
+
+---
+
+# 43. Voto e sfida di Benaloh
+
+Modulo: `evoto/voto.py` (Persona B), la logica del dispositivo di voto.
+
+## Scelta dell'elettore
+
+```python
+@dataclass(frozen=True)
+class VoterChoice:
+    list_index: int | None           # None: nessuna lista segnata
+    preferences: tuple[int, ...]     # caselle di preferenza segnate
+```
+
+Il dispositivo traduce la scelta nei bit delle caselle:
+
+- lista segnata: bit 1 sulla lista, 0 sulle altre e sulla scheda bianca;
+- nessuna lista ma preferenze tutte della stessa lista: la lista viene segnata, perché una preferenza vale anche per la sua lista;
+- nessuna lista e nessuna preferenza: scheda bianca;
+- nessuna lista e preferenze in liste diverse: scelta rifiutata.
+
+Il dispositivo controlla solo la forma della scelta. Il rispetto di R3, R4 ed R5 è garantito dalle prove: una scelta che le viola non produce una scheda (`prove_value_in_set` fallisce).
+
+Ogni casella viene cifrata con un nonce fresco tra `1` e `q - 1`.
+
+## Impronta della scheda
+
+```text
+h = H(Q_bar, d, alpha_1, beta_1, ..., alpha_m, beta_m)
+```
+
+dove `d` è l'indice della circoscrizione e i cifrati seguono l'ordine canonico (sezione 40).
+
+## Sfida di Benaloh (cast-or-spoil)
+
+1. Il dispositivo cifra la scheda, costruisce le prove e mostra l'impronta `h`.
+2. L'elettore sceglie se depositare la scheda (CAST) o sprecarla (SPOILED).
+3. Una scheda sprecata viene pubblicata insieme al witness (voti e nonce): chiunque la ricifra e controlla che i cifrati coincidano.
+4. Dopo una scheda sprecata l'elettore prepara una nuova scheda, con nonce nuovi.
+
+Il dispositivo non sa in anticipo quali schede verranno controllate, quindi non può barare senza rischiare di essere scoperto.
+
+Scelta di progetto: la scheda sprecata si apre rivelando i nonce, come in Helios, e non con una decifratura dei garanti come in ElectionGuard. Così resta vera la regola della sezione 10: i garanti non decifrano mai una singola scheda.
+
+---
+
+# 44. Bacheca pubblica
+
+Modulo: `evoto/urna.py` (Persona B).
+
+## Righe della bacheca
+
+```python
+@dataclass(frozen=True)
+class BoardEntry:
+    sequence: int                          # posizione, da 1
+    district_index: int
+    state: str                             # "CAST" oppure "SPOILED"
+    ballot: EncryptedBallot
+    proofs: BallotProofs
+    ballot_hash: int                       # impronta, sezione 43
+    tracking_code: int
+    revealed_witness: BallotWitness | None # solo per SPOILED
+
+
+@dataclass(frozen=True)
+class BulletinBoard:
+    extended_base_hash: int                # Q_bar
+    genesis_code: int
+    entries: tuple[BoardEntry, ...]
+```
+
+La bacheca è a sola aggiunta: ogni deposito restituisce una nuova bacheca con una riga in più.
+
+## Catena dei codici di tracciamento
+
+Gli stati sono codificati come interi:
+
+```text
+CAST = 1
+SPOILED = 2
+```
+
+e i codici sono:
+
+```text
+code_0 = H(Q_bar)
+
+code_i = H(code_(i-1), i, stato_i, h_i)
+```
+
+dove `h_i` è l'impronta della scheda `i`. Ogni codice dipende da tutti i precedenti: togliere, aggiungere, riordinare o modificare una riga rompe la catena.
+
+L'elettore riceve il codice della propria scheda e controlla che compaia sulla bacheca con stato CAST.
+
+## Regole di accettazione
+
+Una scheda viene pubblicata solo se:
+
+1. le prove R1-R5 sono valide per il layout della sua circoscrizione, con contesto `Q_bar`;
+2. la tupla completa dei suoi cifrati non coincide con quella di una scheda già presente, depositata o sprecata;
+3. se è SPOILED, il witness rivelato ricifra esattamente i suoi cifrati;
+4. se è CAST, non rivela nessun witness.
+
+La regola 2 blocca la copia di una scheda altrui (Cortier e Smyth, 2011): chi ricopia la scheda di un elettore vota come lui e, in una circoscrizione piccola, può scoprirne il voto. Basta confrontare la scheda intera: ogni cifrato compare in una prova R2 o R3 insieme ad altri cifrati, e costruire quella prova richiede la randomness di tutti i cifrati coinvolti. Copiare solo una parte della scheda è quindi impossibile senza conoscerne i nonce.
+
+## Aventi diritto
+
+La lista degli aventi diritto (`VoterRoll`) è tenuta dal seggio e non viene pubblicata: associa ogni elettore alla sua circoscrizione e registra chi ha votato. Ogni elettore deposita una sola scheda CAST; le schede sprecate non consumano il diritto di voto. La bacheca non contiene identificativi degli elettori.
+
+## Controllo V4
+
+Il verificatore ricalcola `code_0`, ogni impronta `h_i` e ogni codice `code_i`, e controlla che le posizioni siano `1, 2, ..., N`.
+
+---
+
+# 45. Conteggio e decifratura per circoscrizione
+
+Modulo: `evoto/urna.py` (Persona B).
+
+## Totali cifrati
+
+Per la circoscrizione `d`, ogni casella (in ordine canonico) viene aggregata sulle schede CAST della circoscrizione:
+
+```text
+(A, B) = (∏ alpha_j, ∏ beta_j)
+```
+
+Le schede SPOILED non vengono contate. Una circoscrizione senza schede ha tutti i totali pari a `(1, 1)`.
+
+```python
+@dataclass(frozen=True)
+class DistrictTally:
+    district_index: int
+    ballot_count: int                    # schede CAST aggregate
+    list_tallies: tuple[Ciphertext, ...]
+    blank_tally: Ciphertext
+    preference_tallies: tuple[Ciphertext, ...]
+```
+
+## Decifratura
+
+Ogni totale viene decifrato con il protocollo della sezione 23, con `max_total = ballot_count` per il logaritmo discreto. Prima di combinarle, ogni share viene verificata con la chiave di verifica ricavata dagli impegni.
+
+```python
+@dataclass(frozen=True)
+class DistrictResult:
+    district_index: int
+    ballot_count: int
+    list_votes: tuple[int, ...]
+    blank_votes: int
+    preference_votes: tuple[int, ...]
+    decryption_shares: tuple[tuple[DecryptionShare, ...], ...]
+```
+
+`decryption_shares[k]` contiene le share dei garanti presenti per il k-esimo totale in ordine canonico.
+
+## Controlli V5, V6 e V7
+
+- V5: il verificatore ricalcola i totali cifrati di ogni circoscrizione dalle schede CAST della bacheca e li confronta con quelli pubblicati.
+- V6: verifica ogni share come nella sezione 23.
+- V7: controlla che per ogni totale valga `B / M = g^t`, con `t` il totale pubblicato.
+
+---
+
+# 46. Scrutinio
+
+Modulo: `evoto/scrutinio.py` (Persona B).
+
+Versione semplificata e dichiarata della legge: tutti i numeri vengono dalla configurazione, tutti i confronti con le soglie sono esatti (frazioni), il calcolo è deterministico e il verificatore può rifarlo identico (V8).
+
+## Metodo dei quozienti interi e dei più alti resti
+
+Per ripartire `S` seggi tra voti `v_1, ..., v_n` con totale `T > 0`:
+
+```text
+seggi_i = floor(v_i · S / T)
+resto_i = (v_i · S) mod T
+```
+
+I seggi rimasti vanno ai resti più alti. A parità di resto vince chi ha più voti; a parità di voti chi viene prima nell'ordine.
+
+## Passaggi
+
+1. **Voti nazionali.** Per ogni lista si sommano i voti delle circoscrizioni. I voti validi `V` sono la somma dei voti di lista; le schede bianche sono contate a parte.
+2. **Voti delle coalizioni.** Somma dei voti di tutte le liste della coalizione.
+3. **Soglie.** Una lista supera la soglia di lista se ha voti `> 0` e almeno `list_threshold · V`. Una coalizione è ammessa se ha almeno `coalition_threshold · V` voti e almeno una lista sopra la soglia di lista; i voti di tutte le sue liste contano per la coalizione, ma solo le liste sopra soglia ricevono seggi. Una lista non coalizzata, o di una coalizione non ammessa, corre da sola se supera la soglia di lista.
+4. **Competitori.** Prima le coalizioni ammesse, poi le liste singole ammesse, ciascuna nell'ordine della configurazione. Se non ce n'è nessuno lo scrutinio si ferma.
+5. **Premio.** Il competitore più votato riceve il premio se è l'unico primo e ha almeno `bonus_threshold · V` voti. Il premio vale `ceil(bonus_seat_share · S)` seggi. Se il riparto proporzionale gli dà già almeno quei seggi, il premio non si applica. Altrimenti il vincitore riceve i seggi del premio e gli altri competitori si ripartiscono i seggi rimanenti con i più alti resti.
+6. **Senza premio.** I seggi si ripartiscono tra tutti i competitori con i più alti resti.
+7. **Liste delle coalizioni.** I seggi di una coalizione si ripartiscono tra le sue liste sopra soglia, con i più alti resti sui voti di lista.
+8. **Circoscrizioni.** I seggi di ogni lista si ripartiscono tra le circoscrizioni con i più alti resti sui suoi voti in ciascuna, senza superare il numero di candidati della lista in quella circoscrizione. I seggi in eccesso passano alle circoscrizioni con posto, nell'ordine dei resti più alti (a parità, più voti e poi indice minore), un seggio per circoscrizione a ogni giro. Se i candidati non bastano lo scrutinio si ferma.
+9. **Eletti.** In ogni circoscrizione il primo seggio di una lista va al capolista; gli altri ai candidati con più preferenze, a parità di preferenze a chi è più in alto nella lista.
+
+Semplificazione dichiarata: il numero di seggi di ogni circoscrizione non è fissato in anticipo, ma risulta dalla distribuzione dei seggi delle liste.
+
+## Risultato
+
+```python
+@dataclass(frozen=True)
+class ScrutinyResult:
+    valid_votes: int
+    blank_votes: int
+    list_votes: tuple[int, ...]
+    coalition_votes: tuple[int, ...]
+    competitors: tuple[Competitor, ...]
+    competitor_seats: tuple[int, ...]
+    bonus_competitor: int | None
+    list_seats: tuple[int, ...]
+    district_list_seats: tuple[tuple[int, ...], ...]
+    elected: tuple[ElectedCandidate, ...]
+```
+
+---
+
+# 47. Dati pubblici per il registro
+
+Il formato JSON del registro e il suo parser nel verificatore sono di Persona A (`registro.py`). Questa sezione elenca cosa il registro deve contenere.
+
+| Dato | Da dove viene | Controllo |
+|---|---|---|
+| configurazione dell'elezione (sezione 42) | `config/*.json` | base di tutto |
+| `p`, `q`, `g` | `GroupParameters` | V1 |
+| `n`, `quorum`, `e`, `Q`, `Q_bar` | cerimonia | V1, V2 |
+| `GuardianRecord` di ogni garante: indice, impegni, prove di Schnorr `(h, c, z)` | `KeyCeremony.records` | V2 |
+| chiave pubblica `K` | `KeyCeremony.joint_public_key` | V1, V2 |
+| bacheca: `extended_base_hash`, `genesis_code`, righe complete (sezione 44) | `BulletinBoard` | V3, V4 |
+| totali cifrati di ogni circoscrizione | `DistrictTally` | V5 |
+| totali in chiaro e share di decifratura con prove `(a, b, c, z)` | `DistrictResult` | V6, V7 |
+| risultato dello scrutinio | `ScrutinyResult` | V8 |
+
+Non vanno mai nel registro:
+
+```text
+coefficienti dei polinomi dei garanti (Guardian)
+share P_i(l) e share aggregate s_l (KeyCeremony.secret_shares)
+witness delle schede CAST
+lista degli aventi diritto (VoterRoll)
+```
+
+---
+
+# 48. Stato del progetto (v0.3)
+
+```text
+F0 ambiente e repository                          completata
+F1 specifica condivisa                            completata
+F2 gruppo, ElGamal, prove, T1-T3                  completata (A)
+F3 garanti e decifratura a soglia                 completata (B)
+F4 scheda politica e prove R1-R5                  completata (A)
+F5 configurazione, voto, bacheca, scrutinio, E1   completata (B)
+F6 verificatore indipendente                      in corso: V1, V2, V3, V6 (A)
+F7 cabina web, notebook, misure                   da fare (B, con A)
+```
+
+Esperimento E1: `demo.py` esegue un'elezione simulata sulla configurazione di esempio e confronta il risultato cifrato con un conteggio in chiaro; `test/test_elezione.py` fa lo stesso controllo in piccolo.
+
+## Prossimi passi
+
+Persona A:
+
+- `registro.py` con il formato JSON dei dati della sezione 47;
+- verificatore: V4, V5, V7, V8, parser e orchestrazione con l'esito finale;
+- limiti delle preferenze nel `BallotLayout` (sezione 40);
+- parametri a 2048 bit in `gruppo.py`.
+
+Persona B:
+
+- cabina elettorale e bacheca web (`cabina/`);
+- notebook didattico con l'esempio della sezione 38;
+- esperimenti E2 (garanti assenti) ed E5 (costi).
+
+---
+
+# 49. Storico delle versioni
 
 | Versione | Contenuto |
 |---|---|
 | 0.1 | Specifica condivisa di F1 |
 | 0.2 | Decisioni per F3: modello a share aggregate (sezione 23), contesti e input di Fiat-Shamir (sezioni 35 e 36), tipi condivisi e chiave pubblica come `int` (sezioni 20 e 27), convenzioni su garanti e controlli (sezioni 18, 19 e 37), nota su T2 (sezione 26), esempio numerico (sezione 38) |
+| 0.3 | Scheda politica F4 (sezione 40), nucleo del verificatore (sezione 41), F5: configurazione (42), voto e sfida di Benaloh (43), bacheca (44), spoglio per circoscrizione (45), scrutinio (46), dati del registro (47), stato del progetto (48); nonce 0 nei cifrati derivati (sezione 16) |
