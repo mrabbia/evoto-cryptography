@@ -11,12 +11,17 @@ chiaro delle stesse scelte, fino ai seggi e agli eletti.
 
 from pathlib import Path
 import random
+import json
+from copy import deepcopy
 
 from evoto.configurazione import (
     build_ballot_layout,
     load_election_config,
 )
-from evoto.gruppo import TEST_PARAMS
+from evoto.gruppo import (
+    DEMO_PARAMS,
+    TEST_PARAMS,
+)
 from evoto.scheda import verify_ballot
 from evoto.simulazione import (
     plaintext_count,
@@ -25,6 +30,15 @@ from evoto.simulazione import (
 )
 from evoto.urna import CAST, SPOILED, verify_spoiled_ballot
 from evoto.voto import VoterChoice
+from evoto.registro import (
+    build_public_registry,
+    public_registry_to_json,
+)
+from verifica.verifica import (
+    recompute_v8_scrutiny,
+    verify_public_registry,
+    verify_v4_board_rules,
+)
 
 
 CONFIG = load_election_config(
@@ -206,3 +220,422 @@ def test_simulation_preserves_encrypted_tallies():
         )
 
         assert tally.ballot_count == 15
+
+
+def test_public_registry_contains_only_public_election_data():
+    """
+    Il registro contiene i dati pubblici necessari alla verifica.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    assert registry["configuration"]["election_id"] == (
+        CONFIG.election_id
+    )
+
+    assert registry["group"] == {
+        "p": TEST_PARAMS.p,
+        "q": TEST_PARAMS.q,
+        "g": TEST_PARAMS.g,
+    }
+
+    assert registry["election_context"] == {
+        "n": 5,
+        "quorum": 3,
+        "e": CONFIG.election_id,
+        "Q": REPORT.ceremony.base_hash,
+        "Q_bar": REPORT.ceremony.extended_base_hash,
+    }
+
+    assert registry["K"] == (
+        REPORT.ceremony.joint_public_key
+    )
+
+    assert len(registry["guardians"]) == 5
+
+    assert len(registry["district_tallies"]) == (
+        len(CONFIG.districts)
+    )
+
+    assert len(registry["district_results"]) == (
+        len(CONFIG.districts)
+    )
+
+    assert registry["bulletin_board"][
+        "extended_base_hash"
+    ] == REPORT.ceremony.extended_base_hash
+
+    assert registry["scrutiny"]["list_seats"] == (
+        list(REPORT.scrutiny.list_seats)
+    )
+
+    assert "secret_shares" not in registry
+    assert "plaintext_results" not in registry
+    assert "plaintext_scrutiny" not in registry
+    assert "timings" not in registry
+
+
+def test_public_registry_is_valid_json():
+    """
+    Il registro completo può essere serializzato e riletto come JSON.
+    """
+
+    encoded = public_registry_to_json(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    decoded = json.loads(encoded)
+
+    assert decoded["group"]["p"] == TEST_PARAMS.p
+    assert decoded["group"]["q"] == TEST_PARAMS.q
+    assert decoded["group"]["g"] == TEST_PARAMS.g
+
+    assert decoded["election_context"]["n"] == 5
+    assert decoded["election_context"]["quorum"] == 3
+
+    assert decoded["K"] == (
+        REPORT.ceremony.joint_public_key
+    )
+
+
+def test_public_registry_never_reveals_cast_witnesses():
+    """
+    Nessuna scheda CAST pubblica plaintext o nonce.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    for entry in registry["bulletin_board"]["entries"]:
+        if entry["state"] == CAST:
+            assert "revealed_witness" not in entry
+
+        if entry["state"] == SPOILED:
+            assert "revealed_witness" in entry
+
+
+def test_independent_verifier_accepts_complete_registry():
+    """
+    Il verificatore indipendente accetta l'elezione completa.
+    """
+
+    serialized = public_registry_to_json(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    verification = (
+        verify_public_registry(
+            serialized
+        )
+    )
+
+    assert verification == {
+        "V1": True,
+        "V2": True,
+        "V3": True,
+        "V4": True,
+        "V5": True,
+        "V6": True,
+        "V7": True,
+        "V8": True,
+        "overall": True,
+    }
+
+
+def test_independent_verifier_rejects_tampered_registry():
+    """
+    Una modifica al registro rende negativa la verifica complessiva.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    registry["district_tallies"][0][
+        "list_tallies"
+    ][0]["beta"] = 1
+
+    serialized = json.dumps(
+        registry
+    )
+
+    verification = (
+        verify_public_registry(
+            serialized
+        )
+    )
+
+    assert not verification["V5"]
+    assert not verification["overall"]
+
+
+def test_independent_verifier_rejects_false_spoiled_witness():
+    """
+    Il verificatore rifiuta un witness SPOILED alterato.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    spoiled_entry = next(
+        entry
+        for entry
+        in registry[
+            "bulletin_board"
+        ]["entries"]
+        if entry["state"] == SPOILED
+    )
+
+    spoiled_entry[
+        "revealed_witness"
+    ]["blank_nonce"] += 1
+
+    assert not verify_v4_board_rules(
+        board=registry[
+            "bulletin_board"
+        ],
+        public_key=registry["K"],
+        p=TEST_PARAMS.p,
+        q=TEST_PARAMS.q,
+        g=TEST_PARAMS.g,
+    )
+
+    verification = (
+        verify_public_registry(
+            json.dumps(registry)
+        )
+    )
+
+    assert not verification["V4"]
+    assert not verification["overall"]
+
+
+def test_independent_verifier_rejects_duplicate_ballot():
+    """
+    Il verificatore rifiuta due schede con gli stessi ciphertext.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    entries = registry[
+        "bulletin_board"
+    ]["entries"]
+
+    entries[1]["ballot"] = deepcopy(
+        entries[0]["ballot"]
+    )
+
+    assert not verify_v4_board_rules(
+        board=registry[
+            "bulletin_board"
+        ],
+        public_key=registry["K"],
+        p=TEST_PARAMS.p,
+        q=TEST_PARAMS.q,
+        g=TEST_PARAMS.g,
+    )
+
+
+def test_e3_rejects_tampered_guardian_proof():
+    """
+    E3 rileva una modifica a una prova Schnorr dei garanti.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    registry["guardians"][0]["proofs"][0][
+        "challenge"
+    ] += 1
+
+    verification = verify_public_registry(
+        json.dumps(registry)
+    )
+
+    assert not verification["V2"]
+    assert not verification["overall"]
+
+
+def test_e3_rejects_tampered_ballot_proof():
+    """
+    E3 rileva una modifica a una prova della scheda.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    registry["bulletin_board"]["entries"][0][
+        "proofs"
+    ]["r1_proofs"][0]["branches"][0][
+        "challenge"
+    ] += 1
+
+    verification = verify_public_registry(
+        json.dumps(registry)
+    )
+
+    assert not verification["V3"]
+    assert not verification["overall"]
+
+
+def test_e3_rejects_tampered_tracking_code():
+    """
+    E3 rileva una modifica alla catena della bacheca.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    registry["bulletin_board"]["entries"][0][
+        "tracking_code"
+    ] += 1
+
+    verification = verify_public_registry(
+        json.dumps(registry)
+    )
+
+    assert not verification["V4"]
+    assert not verification["overall"]
+
+
+def test_e3_rejects_tampered_decryption_proof():
+    """
+    E3 rileva una modifica a una prova Chaum-Pedersen.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    registry["district_results"][0][
+        "decryption_shares"
+    ][0][0]["proof"]["challenge"] += 1
+
+    verification = verify_public_registry(
+        json.dumps(registry)
+    )
+
+    assert not verification["V6"]
+    assert not verification["overall"]
+
+
+def test_e3_rejects_wrong_clear_total():
+    """
+    E3 rileva un totale in chiaro incompatibile con la decifratura.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    result = registry[
+        "district_results"
+    ][0]
+
+    original = result[
+        "list_votes"
+    ][0]
+
+    if original < result["ballot_count"]:
+        result["list_votes"][0] += 1
+    else:
+        result["list_votes"][0] -= 1
+
+    registry["scrutiny"] = recompute_v8_scrutiny(
+        configuration=registry[
+            "configuration"
+        ],
+        district_results=registry[
+            "district_results"
+        ],
+    )
+
+    verification = verify_public_registry(
+        json.dumps(registry)
+    )
+
+    assert not verification["V7"]
+    assert verification["V8"]
+    assert not verification["overall"]
+
+
+def test_e3_rejects_tampered_scrutiny():
+    """
+    E3 rileva una modifica al risultato dello scrutinio.
+    """
+
+    registry = build_public_registry(
+        REPORT,
+        TEST_PARAMS,
+    )
+
+    registry["scrutiny"][
+        "list_seats"
+    ][0] += 1
+
+    verification = verify_public_registry(
+        json.dumps(registry)
+    )
+
+    assert not verification["V8"]
+    assert not verification["overall"]
+
+
+def test_complete_registry_with_demo_parameters():
+    """
+    L'intero protocollo funziona con i parametri finali della demo.
+    """
+
+    report = simulate_election(
+        config=CONFIG,
+        voters_per_district=2,
+        guardian_count=3,
+        quorum=2,
+        present_guardians=(1, 3),
+        params=DEMO_PARAMS,
+        seed=7,
+        list_weights=WEIGHTS,
+        spoil_probability=0.2,
+    )
+
+    serialized = public_registry_to_json(
+        report,
+        DEMO_PARAMS,
+    )
+
+    verification = verify_public_registry(
+        serialized
+    )
+
+    assert verification == {
+        "V1": True,
+        "V2": True,
+        "V3": True,
+        "V4": True,
+        "V5": True,
+        "V6": True,
+        "V7": True,
+        "V8": True,
+        "overall": True,
+    }

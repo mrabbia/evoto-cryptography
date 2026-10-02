@@ -2116,31 +2116,63 @@ lista degli aventi diritto (VoterRoll)
 
 ---
 
-# 48. Stato del progetto (v0.4)
+# 48. Stato del progetto (v0.5)
 
 ```text
 F0 ambiente e repository                          completata
 F1 specifica condivisa                            completata
-F2 gruppo, ElGamal, prove, T1-T3                  completata (A)
+F2 gruppo, ElGamal, prove, T1-T4                  completata (A)
 F3 garanti e decifratura a soglia                 completata (B)
 F4 scheda politica e prove R1-R5                  completata (A)
 F5 configurazione, voto, bacheca, scrutinio, E1   completata (B)
-F6 verificatore indipendente                      in corso: V1, V2, V3, V6 (A)
+F6 verificatore indipendente, E3, E4              completata (A)
 F7 cabina web, notebook, misure                   da fare (B, con A)
 ```
 
-Esperimento E1: `demo.py` esegue un'elezione simulata sulla configurazione di esempio e confronta il risultato cifrato con un conteggio in chiaro; `test/test_elezione.py` fa lo stesso controllo in piccolo.
-La simulazione conserva inoltre i `DistrictTally` cifrati in
-`SimulationReport.tallies`, così da poterli pubblicare nel registro
-e confrontare in V5 con i tally ricalcolati dalle schede CAST.
+Esperimento E1: `demo.py` esegue un'elezione simulata sulla configurazione di esempio e confronta il risultato cifrato con un conteggio in chiaro; `test/test_elezione.py` esegue lo stesso controllo in forma automatizzata.
+
+La simulazione conserva inoltre i `DistrictTally` cifrati in `SimulationReport.tallies`, così da poterli pubblicare nel registro e confrontare in V5 con i tally ricalcolati dalle sole schede `CAST`.
+
+T4 è completato: sugli stessi plaintext e nonce, i ciphertext aggregati prodotti da `evoto` coincidono con quelli di ElectionGuard e il totale decifrato coincide con il conteggio in chiaro.
+
+F6 è completata.
+
+Il registro pubblico JSON contiene esclusivamente i dati necessari alla verifica universale e non pubblica coefficienti segreti dei polinomi dei garanti, share aggregate segrete, `VoterRoll` o witness delle schede `CAST`.
+
+Il verificatore indipendente:
+
+- usa soltanto la libreria standard Python e `gmpy2`;
+- non importa alcun modulo `evoto`;
+- legge il registro pubblico JSON;
+- esegue autonomamente i controlli V1-V8;
+- ricostruisce `Q`, `Q_bar`, la chiave pubblica congiunta `K` e le verification key dei garanti;
+- verifica le prove di Schnorr dei garanti;
+- verifica le prove R1-R5 di ogni scheda;
+- verifica la catena della bacheca, le sequenze e i tracking code;
+- verifica il cast-or-spoil ricifrando i witness delle schede `SPOILED`;
+- rifiuta la pubblicazione di witness per le schede `CAST`;
+- rileva schede cifrate duplicate;
+- ricalcola i tally usando esclusivamente le schede `CAST`;
+- verifica le prove di Chaum-Pedersen delle share di decifratura;
+- ricombina le share tramite i coefficienti di Lagrange;
+- verifica i totali in chiaro;
+- riesegue deterministicamente lo scrutinio;
+- confronta voti, seggi ed eletti con il risultato pubblicato;
+- restituisce gli esiti separati `V1`-`V8` e l'esito complessivo `overall`.
+
+L'esperimento E3 è coperto da test di manomissione mirati su prove dei garanti, prove delle schede, tracking code, tally cifrati, prove di decifratura, totali in chiaro, witness delle schede `SPOILED` e risultato dello scrutinio.
+
+L'esperimento E4 è coperto dai test della scheda e del verificatore: configurazioni che violano i vincoli R3-R5 non possono produrre una scheda valida e prove manomesse vengono rifiutate dal verificatore indipendente.
+
+In `gruppo.py` è inoltre disponibile `DEMO_PARAMS`, un gruppo MODP con `p` da 2048 bit e `q` da 256 bit. L'intero protocollo, dalla simulazione alla verifica indipendente V1-V8 del registro pubblico, è testato end-to-end anche con questi parametri.
 
 ## Prossimi passi
 
 Persona A:
 
-- `registro.py` con il formato JSON dei dati della sezione 47;
-- verificatore: V4, V5, V7, V8, parser e orchestrazione con l'esito finale;
-- parametri a 2048 bit in `gruppo.py`.
+- supporto a F7 per l'integrazione del verificatore nella demo;
+- collaborazione alle misure dell'esperimento E5;
+- preparazione del materiale relativo alla verifica indipendente per tesina e presentazione.
 
 Persona B:
 
@@ -2158,3 +2190,4 @@ Persona B:
 | 0.2 | Decisioni per F3: modello a share aggregate (sezione 23), contesti e input di Fiat-Shamir (sezioni 35 e 36), tipi condivisi e chiave pubblica come `int` (sezioni 20 e 27), convenzioni su garanti e controlli (sezioni 18, 19 e 37), nota su T2 (sezione 26), esempio numerico (sezione 38) |
 | 0.3 | Scheda politica F4 (sezione 40), nucleo del verificatore (sezione 41), F5: configurazione (42), voto e sfida di Benaloh (43), bacheca (44), spoglio per circoscrizione (45), scrutinio (46), dati del registro (47), stato del progetto (48); nonce 0 nei cifrati derivati (sezione 16) |
 | 0.4 | Riallineamento pre-F6: `e = election_id`; limiti R4/R5 parametrizzati tramite `BallotLayout` e configurazione; verificatore indipendente allineato ai limiti dinamici e irrobustito sugli input; prodotto vuoto dei ciphertext pari a `(1, 1)`; `SimulationReport` conserva i `DistrictTally`; workflow Git aggiornato con merge autonomo consentito dopo test e rispetto della specifica |
+| 0.5 | Chiusura F6: registro pubblico JSON completo; parser e verificatore indipendente V1-V8; verifica cast-or-spoil e rilevamento duplicati; test E3 di manomissione ed E4 sui client non validi; T4 completato contro ElectionGuard; parametri demo MODP 2048/256 bit; test end-to-end del registro con `DEMO_PARAMS`; ottimizzazione delle esponenziazioni modulari del verificatore tramite `gmpy2.powmod` |
