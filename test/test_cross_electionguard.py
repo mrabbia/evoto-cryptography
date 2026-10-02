@@ -402,3 +402,164 @@ print("CROSS_RESULT=" + str(success))
     output = _run_with_reference_python(code)
 
     assert "CROSS_RESULT=True" in output
+
+
+def test_t4_complete_tally_matches_electionguard_and_plaintext():
+    """
+    T4.
+
+    Sugli stessi voti e nonce, i totali cifrati di evoto
+    ed ElectionGuard coincidono e decifrano nel conteggio in chiaro.
+    """
+
+    code = """
+from electionguard.constants import (
+    get_large_prime,
+    get_small_prime,
+    get_generator,
+)
+from electionguard.group import int_to_p, int_to_q
+from electionguard.elgamal import (
+    elgamal_add,
+    elgamal_encrypt,
+)
+
+from evoto.gruppo import (
+    GroupParameters,
+    mod_inverse,
+    mod_pow,
+)
+from evoto.elgamal import (
+    bounded_discrete_log,
+    encrypt,
+    multiply_ciphertexts,
+    public_key_from_secret,
+)
+
+p = get_large_prime()
+q = get_small_prime()
+g = get_generator()
+
+params = GroupParameters(
+    p=p,
+    q=q,
+    g=g,
+)
+
+secret_key = 2
+
+public_key = public_key_from_secret(
+    secret_key,
+    params,
+)
+
+# Tre caselle indipendenti aggregate su cinque schede
+# La terza casella può essere interpretata come scheda bianca
+ballots = (
+    (1, 0, 0),
+    (0, 1, 0),
+    (1, 0, 0),
+    (0, 0, 1),
+    (0, 1, 0),
+)
+
+nonces = (
+    (3, 5, 7),
+    (11, 13, 17),
+    (19, 23, 29),
+    (31, 37, 41),
+    (43, 47, 53),
+)
+
+success = True
+
+for selection_index in range(3):
+    ours_ciphertexts = []
+    electionguard_ciphertexts = []
+
+    for ballot_index, ballot in enumerate(ballots):
+        plaintext = ballot[selection_index]
+        nonce = nonces[
+            ballot_index
+        ][selection_index]
+
+        ours_ciphertexts.append(
+            encrypt(
+                message=plaintext,
+                public_key=public_key,
+                params=params,
+                nonce=nonce,
+            )
+        )
+
+        electionguard_ciphertexts.append(
+            elgamal_encrypt(
+                plaintext,
+                int_to_q(nonce),
+                int_to_p(public_key),
+            )
+        )
+
+    ours_tally = ours_ciphertexts[0]
+
+    for ciphertext in ours_ciphertexts[1:]:
+        ours_tally = multiply_ciphertexts(
+            ours_tally,
+            ciphertext,
+            params,
+        )
+
+    electionguard_tally = elgamal_add(
+        *electionguard_ciphertexts
+    )
+
+    same_ciphertext = (
+        ours_tally.alpha
+        == int(electionguard_tally.pad)
+        and ours_tally.beta
+        == int(electionguard_tally.data)
+    )
+
+    decryption_factor = mod_pow(
+        ours_tally.alpha,
+        secret_key,
+        p,
+    )
+
+    encoded_total = (
+        ours_tally.beta
+        * mod_inverse(
+            decryption_factor,
+            p,
+        )
+    ) % p
+
+    ours_total = bounded_discrete_log(
+        encoded_total,
+        params,
+        max_exponent=len(ballots),
+    )
+
+    electionguard_total = (
+        electionguard_tally.decrypt(
+            int_to_q(secret_key)
+        )
+    )
+
+    clear_total = sum(
+        ballot[selection_index]
+        for ballot in ballots
+    )
+
+    success = success and (
+        same_ciphertext
+        and ours_total == clear_total
+        and electionguard_total == clear_total
+    )
+
+print("CROSS_RESULT=" + str(success))
+"""
+
+    output = _run_with_reference_python(code)
+
+    assert "CROSS_RESULT=True" in output

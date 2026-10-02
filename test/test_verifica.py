@@ -1,11 +1,12 @@
 """
 Test del verificatore indipendente.
 
-Questi test verificano i controlli che non dipendono
-dal formato futuro del registro pubblico.
+I controlli vengono verificati senza utilizzare
+le implementazioni della libreria evoto.
 """
 
 import pytest
+import json
 
 from verifica.verifica import (
     hash_to_q,
@@ -24,6 +25,13 @@ from verifica.verifica import (
     verify_r5_rule,
     compute_joint_public_key,
     compute_verification_key,
+    compute_ballot_hash_from_data,
+    parse_public_registry,
+    verify_v4_board_chain,
+    verify_v5_tallies,
+    verify_v7_results,
+    recompute_v8_scrutiny,
+    verify_v8_scrutiny,
 )
 
 
@@ -1280,4 +1288,1050 @@ def test_empty_ciphertext_product_gives_identity():
     ) == (
         1,
         1,
+    )
+
+
+def _minimal_registry_data() -> dict[str, object]:
+    """
+    Costruisce un registro minimo valido per testare il parser.
+    """
+
+    return {
+        "configuration": {},
+        "group": {},
+        "election_context": {},
+        "guardians": [],
+        "K": 1,
+        "bulletin_board": {},
+        "district_tallies": [],
+        "district_results": [],
+        "scrutiny": {},
+    }
+
+
+def test_registry_parser_accepts_complete_json():
+    """
+    Il parser accetta un registro con tutte le sezioni richieste.
+    """
+
+    data = _minimal_registry_data()
+
+    parsed = parse_public_registry(
+        json.dumps(data)
+    )
+
+    assert parsed == data
+
+
+def test_registry_parser_rejects_invalid_json():
+    """
+    Il parser rifiuta un documento che non contiene JSON valido.
+    """
+
+    with pytest.raises(ValueError):
+        parse_public_registry(
+            "{registro non valido"
+        )
+
+
+def test_registry_parser_rejects_missing_section():
+    """
+    Il parser rifiuta un registro privo di una sezione obbligatoria.
+    """
+
+    data = _minimal_registry_data()
+
+    del data["bulletin_board"]
+
+    with pytest.raises(ValueError):
+        parse_public_registry(
+            json.dumps(data)
+        )
+
+
+def _v4_test_ballot() -> dict[str, object]:
+    """
+    Costruisce una scheda pubblica minima per i test V4.
+    """
+
+    return {
+        "list_ciphertexts": [
+            {
+                "alpha": 4,
+                "beta": 16,
+            },
+            {
+                "alpha": 16,
+                "beta": 64,
+            },
+        ],
+        "blank_ciphertext": {
+            "alpha": 64,
+            "beta": 256,
+        },
+        "preference_ciphertexts": [
+            {
+                "alpha": 256,
+                "beta": 90,
+            },
+        ],
+    }
+
+
+def _v4_test_board() -> dict[str, object]:
+    """
+    Costruisce una piccola catena V4 corretta.
+    """
+
+    q = 1289
+    q_bar = 744
+
+    genesis = hash_to_q(
+        q,
+        q_bar,
+    )
+
+    first_ballot = _v4_test_ballot()
+
+    first_hash = compute_ballot_hash_from_data(
+        ballot=first_ballot,
+        district_index=0,
+        extended_base_hash=q_bar,
+        q=q,
+    )
+
+    first_code = hash_to_q(
+        q,
+        genesis,
+        1,
+        1,
+        first_hash,
+    )
+
+    second_ballot = {
+        "list_ciphertexts": [
+            {
+                "alpha": 1024,
+                "beta": 742,
+            },
+            {
+                "alpha": 742,
+                "beta": 389,
+            },
+        ],
+        "blank_ciphertext": {
+            "alpha": 389,
+            "beta": 1556,
+        },
+        "preference_ciphertexts": [
+            {
+                "alpha": 1556,
+                "beta": 1066,
+            },
+        ],
+    }
+
+    second_hash = compute_ballot_hash_from_data(
+        ballot=second_ballot,
+        district_index=1,
+        extended_base_hash=q_bar,
+        q=q,
+    )
+
+    second_code = hash_to_q(
+        q,
+        first_code,
+        2,
+        2,
+        second_hash,
+    )
+
+    return {
+        "extended_base_hash": q_bar,
+        "genesis_code": genesis,
+        "entries": [
+            {
+                "sequence": 1,
+                "district_index": 0,
+                "state": "CAST",
+                "ballot": first_ballot,
+                "proofs": {},
+                "ballot_hash": first_hash,
+                "tracking_code": first_code,
+            },
+            {
+                "sequence": 2,
+                "district_index": 1,
+                "state": "SPOILED",
+                "ballot": second_ballot,
+                "proofs": {},
+                "ballot_hash": second_hash,
+                "tracking_code": second_code,
+                "revealed_witness": {},
+            },
+        ],
+    }
+
+
+def test_v4_accepts_valid_board_chain():
+    """
+    V4 accetta una bacheca con catena corretta.
+    """
+
+    assert verify_v4_board_chain(
+        board=_v4_test_board(),
+        q=1289,
+    )
+
+
+def test_v4_rejects_modified_ballot():
+    """
+    V4 rileva una scheda modificata dopo la pubblicazione.
+    """
+
+    board = _v4_test_board()
+
+    board["entries"][0]["ballot"][
+        "blank_ciphertext"
+    ]["beta"] += 1
+
+    assert not verify_v4_board_chain(
+        board=board,
+        q=1289,
+    )
+
+
+def test_v4_rejects_modified_tracking_code():
+    """
+    V4 rileva una modifica alla catena dei tracking code.
+    """
+
+    board = _v4_test_board()
+
+    board["entries"][0]["tracking_code"] += 1
+
+    assert not verify_v4_board_chain(
+        board=board,
+        q=1289,
+    )
+
+
+def test_v4_rejects_reordered_sequences():
+    """
+    V4 richiede sequenze consecutive a partire da uno.
+    """
+
+    board = _v4_test_board()
+
+    board["entries"][1]["sequence"] = 3
+
+    assert not verify_v4_board_chain(
+        board=board,
+        q=1289,
+    )
+
+
+def test_v4_rejects_cast_witness():
+    """
+    V4 rifiuta una scheda CAST che rivela il witness.
+    """
+
+    board = _v4_test_board()
+
+    board["entries"][0]["revealed_witness"] = {
+        "list_plaintexts": [1],
+    }
+
+    assert not verify_v4_board_chain(
+        board=board,
+        q=1289,
+    )
+
+
+def test_v4_rejects_spoiled_without_witness():
+    """
+    V4 rifiuta una scheda SPOILED senza dati rivelati.
+    """
+
+    board = _v4_test_board()
+
+    del board["entries"][1]["revealed_witness"]
+
+    assert not verify_v4_board_chain(
+        board=board,
+        q=1289,
+    )
+
+
+def _v5_configuration() -> dict[str, object]:
+    """
+    Costruisce una configurazione minima con due circoscrizioni.
+    """
+
+    return {
+        "lists": [
+            {
+                "name": "Lista A",
+                "coalition": None,
+            },
+            {
+                "name": "Lista B",
+                "coalition": None,
+            },
+        ],
+        "districts": [
+            {
+                "name": "Nord",
+                "candidates": {
+                    "Lista A": [
+                        {
+                            "name": "A0",
+                            "gender": "M",
+                        },
+                        {
+                            "name": "A1",
+                            "gender": "F",
+                        },
+                    ],
+                    "Lista B": [
+                        {
+                            "name": "B0",
+                            "gender": "F",
+                        },
+                    ],
+                },
+            },
+            {
+                "name": "Sud",
+                "candidates": {
+                    "Lista A": [
+                        {
+                            "name": "A0",
+                            "gender": "M",
+                        },
+                        {
+                            "name": "A1",
+                            "gender": "F",
+                        },
+                    ],
+                    "Lista B": [
+                        {
+                            "name": "B0",
+                            "gender": "F",
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+
+
+def _v5_board_and_tallies() -> tuple[
+    dict[str, object],
+    list[dict[str, object]],
+]:
+    """
+    Costruisce bacheca e tally coerenti per i test V5.
+    """
+
+    p = 2579
+    q = 1289
+
+    first_list = _encrypt_for_verifier_test(
+        1,
+        10,
+    )
+    second_list = _encrypt_for_verifier_test(
+        0,
+        20,
+    )
+    blank = _encrypt_for_verifier_test(
+        0,
+        30,
+    )
+    preference = _encrypt_for_verifier_test(
+        1,
+        40,
+    )
+
+    spoiled_list = _encrypt_for_verifier_test(
+        0,
+        50,
+    )
+
+    board = {
+        "entries": [
+            {
+                "sequence": 1,
+                "district_index": 0,
+                "state": "CAST",
+                "ballot": {
+                    "list_ciphertexts": [
+                        {
+                            "alpha": first_list[0],
+                            "beta": first_list[1],
+                        },
+                        {
+                            "alpha": second_list[0],
+                            "beta": second_list[1],
+                        },
+                    ],
+                    "blank_ciphertext": {
+                        "alpha": blank[0],
+                        "beta": blank[1],
+                    },
+                    "preference_ciphertexts": [
+                        {
+                            "alpha": preference[0],
+                            "beta": preference[1],
+                        },
+                    ],
+                },
+            },
+            {
+                "sequence": 2,
+                "district_index": 0,
+                "state": "SPOILED",
+                "ballot": {
+                    "list_ciphertexts": [
+                        {
+                            "alpha": spoiled_list[0],
+                            "beta": spoiled_list[1],
+                        },
+                        {
+                            "alpha": spoiled_list[0],
+                            "beta": spoiled_list[1],
+                        },
+                    ],
+                    "blank_ciphertext": {
+                        "alpha": spoiled_list[0],
+                        "beta": spoiled_list[1],
+                    },
+                    "preference_ciphertexts": [
+                        {
+                            "alpha": spoiled_list[0],
+                            "beta": spoiled_list[1],
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+
+    tallies = [
+        {
+            "district_index": 0,
+            "ballot_count": 1,
+            "list_tallies": [
+                {
+                    "alpha": first_list[0],
+                    "beta": first_list[1],
+                },
+                {
+                    "alpha": second_list[0],
+                    "beta": second_list[1],
+                },
+            ],
+            "blank_tally": {
+                "alpha": blank[0],
+                "beta": blank[1],
+            },
+            "preference_tallies": [
+                {
+                    "alpha": preference[0],
+                    "beta": preference[1],
+                },
+            ],
+        },
+        {
+            "district_index": 1,
+            "ballot_count": 0,
+            "list_tallies": [
+                {
+                    "alpha": 1,
+                    "beta": 1,
+                },
+                {
+                    "alpha": 1,
+                    "beta": 1,
+                },
+            ],
+            "blank_tally": {
+                "alpha": 1,
+                "beta": 1,
+            },
+            "preference_tallies": [
+                {
+                    "alpha": 1,
+                    "beta": 1,
+                },
+            ],
+        },
+    ]
+
+    return (
+        board,
+        tallies,
+    )
+
+
+def test_v5_accepts_correct_tallies():
+    """
+    V5 accetta tally ricalcolati dalle sole schede CAST.
+    """
+
+    board, tallies = _v5_board_and_tallies()
+
+    assert verify_v5_tallies(
+        configuration=_v5_configuration(),
+        board=board,
+        published_tallies=tallies,
+        p=2579,
+        q=1289,
+    )
+
+
+def test_v5_ignores_spoiled_ballots():
+    """
+    V5 non include le schede SPOILED nel conteggio.
+    """
+
+    board, tallies = _v5_board_and_tallies()
+
+    spoiled = board["entries"][1]["ballot"]
+
+    spoiled["list_ciphertexts"][0][
+        "alpha"
+    ] = 1
+
+    spoiled["list_ciphertexts"][0][
+        "beta"
+    ] = 1
+
+    assert verify_v5_tallies(
+        configuration=_v5_configuration(),
+        board=board,
+        published_tallies=tallies,
+        p=2579,
+        q=1289,
+    )
+
+
+def test_v5_rejects_modified_encrypted_tally():
+    """
+    V5 rileva la modifica di un tally cifrato pubblicato.
+    """
+
+    board, tallies = _v5_board_and_tallies()
+
+    tallies[0]["list_tallies"][0][
+        "beta"
+    ] = 1
+
+    assert not verify_v5_tallies(
+        configuration=_v5_configuration(),
+        board=board,
+        published_tallies=tallies,
+        p=2579,
+        q=1289,
+    )
+
+
+def test_v5_rejects_wrong_ballot_count():
+    """
+    V5 ricalcola autonomamente il numero di schede CAST.
+    """
+
+    board, tallies = _v5_board_and_tallies()
+
+    tallies[0]["ballot_count"] = 2
+
+    assert not verify_v5_tallies(
+        configuration=_v5_configuration(),
+        board=board,
+        published_tallies=tallies,
+        p=2579,
+        q=1289,
+    )
+
+
+def test_v5_accepts_empty_district_identity_tally():
+    """
+    V5 verifica correttamente una circoscrizione senza voti.
+    """
+
+    board, tallies = _v5_board_and_tallies()
+
+    assert tallies[1]["ballot_count"] == 0
+
+    assert tallies[1]["blank_tally"] == {
+        "alpha": 1,
+        "beta": 1,
+    }
+
+    assert verify_v5_tallies(
+        configuration=_v5_configuration(),
+        board=board,
+        published_tallies=tallies,
+        p=2579,
+        q=1289,
+    )
+
+
+def _v7_tallies_and_results() -> tuple[
+    list[dict[str, object]],
+    list[dict[str, object]],
+]:
+    """
+    Costruisce un totale decifrabile con una share.
+    """
+
+    p = 2579
+    g = 4
+
+    secret = 123
+    nonce = 17
+    clear_total = 3
+
+    public_key = pow(
+        g,
+        secret,
+        p,
+    )
+
+    alpha = pow(
+        g,
+        nonce,
+        p,
+    )
+
+    beta = (
+        pow(
+            g,
+            clear_total,
+            p,
+        )
+        * pow(
+            public_key,
+            nonce,
+            p,
+        )
+    ) % p
+
+    partial_decryption = pow(
+        alpha,
+        secret,
+        p,
+    )
+
+    tallies = [
+        {
+            "district_index": 0,
+            "ballot_count": 5,
+            "list_tallies": [
+                {
+                    "alpha": alpha,
+                    "beta": beta,
+                },
+            ],
+            "blank_tally": {
+                "alpha": 1,
+                "beta": 1,
+            },
+            "preference_tallies": [],
+        },
+    ]
+
+    results = [
+        {
+            "district_index": 0,
+            "ballot_count": 5,
+            "list_votes": [
+                clear_total,
+            ],
+            "blank_votes": 0,
+            "preference_votes": [],
+            "decryption_shares": [
+                [
+                    {
+                        "guardian_index": 1,
+                        "partial_decryption":
+                            partial_decryption,
+                        "proof": {},
+                    },
+                ],
+                [
+                    {
+                        "guardian_index": 1,
+                        "partial_decryption": 1,
+                        "proof": {},
+                    },
+                ],
+            ],
+        },
+    ]
+
+    return (
+        tallies,
+        results,
+    )
+
+
+def test_v7_accepts_correct_decrypted_totals():
+    """
+    V7 accetta un totale coerente con le share pubblicate.
+    """
+
+    tallies, results = (
+        _v7_tallies_and_results()
+    )
+
+    assert verify_v7_results(
+        published_tallies=tallies,
+        district_results=results,
+        p=2579,
+        q=1289,
+        g=4,
+        quorum=1,
+    )
+
+
+def test_v7_rejects_modified_clear_total():
+    """
+    V7 rileva la modifica del totale in chiaro.
+    """
+
+    tallies, results = (
+        _v7_tallies_and_results()
+    )
+
+    results[0]["list_votes"][0] = 4
+
+    assert not verify_v7_results(
+        published_tallies=tallies,
+        district_results=results,
+        p=2579,
+        q=1289,
+        g=4,
+        quorum=1,
+    )
+
+
+def test_v7_rejects_modified_decryption_share():
+    """
+    V7 rileva una share che produce una decifratura diversa.
+    """
+
+    tallies, results = (
+        _v7_tallies_and_results()
+    )
+
+    results[0]["decryption_shares"][0][0][
+        "partial_decryption"
+    ] = 1
+
+    assert not verify_v7_results(
+        published_tallies=tallies,
+        district_results=results,
+        p=2579,
+        q=1289,
+        g=4,
+        quorum=1,
+    )
+
+
+def test_v7_rejects_missing_share_set():
+    """
+    V7 richiede un insieme di share per ogni totale.
+    """
+
+    tallies, results = (
+        _v7_tallies_and_results()
+    )
+
+    results[0]["decryption_shares"].pop()
+
+    assert not verify_v7_results(
+        published_tallies=tallies,
+        district_results=results,
+        p=2579,
+        q=1289,
+        g=4,
+        quorum=1,
+    )
+
+
+def test_v7_rejects_different_ballot_count():
+    """
+    V7 richiede lo stesso ballot_count tra tally e risultato.
+    """
+
+    tallies, results = (
+        _v7_tallies_and_results()
+    )
+
+    results[0]["ballot_count"] = 4
+
+    assert not verify_v7_results(
+        published_tallies=tallies,
+        district_results=results,
+        p=2579,
+        q=1289,
+        g=4,
+        quorum=1,
+    )
+
+
+def _v8_test_data() -> tuple[
+    dict[str, object],
+    list[dict[str, object]],
+]:
+    """
+    Costruisce un piccolo scrutinio deterministico.
+    """
+
+    configuration = {
+        "name": "Elezione V8",
+        "election_id": 1,
+        "seats": 3,
+        "rules": {
+            "max_preferences": 1,
+            "max_preferences_per_gender": 1,
+            "list_threshold_percent": 0,
+            "coalition_threshold_percent": 0,
+            "bonus_threshold_percent": 100,
+            "bonus_seats_percent": 60,
+        },
+        "lists": [
+            {
+                "name": "Lista A",
+                "coalition": None,
+            },
+            {
+                "name": "Lista B",
+                "coalition": None,
+            },
+        ],
+        "districts": [
+            {
+                "name": "Nord",
+                "candidates": {
+                    "Lista A": [
+                        {
+                            "name": "A0",
+                            "gender": "M",
+                        },
+                        {
+                            "name": "A1",
+                            "gender": "F",
+                        },
+                    ],
+                    "Lista B": [
+                        {
+                            "name": "B0",
+                            "gender": "F",
+                        },
+                        {
+                            "name": "B1",
+                            "gender": "M",
+                        },
+                    ],
+                },
+            },
+            {
+                "name": "Sud",
+                "candidates": {
+                    "Lista A": [
+                        {
+                            "name": "A2",
+                            "gender": "F",
+                        },
+                        {
+                            "name": "A3",
+                            "gender": "M",
+                        },
+                    ],
+                    "Lista B": [
+                        {
+                            "name": "B2",
+                            "gender": "M",
+                        },
+                        {
+                            "name": "B3",
+                            "gender": "F",
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+
+    results = [
+        {
+            "district_index": 0,
+            "ballot_count": 6,
+            "list_votes": [
+                4,
+                2,
+            ],
+            "blank_votes": 0,
+            "preference_votes": [
+                3,
+                1,
+            ],
+            "decryption_shares": [],
+        },
+        {
+            "district_index": 1,
+            "ballot_count": 4,
+            "list_votes": [
+                2,
+                2,
+            ],
+            "blank_votes": 0,
+            "preference_votes": [
+                1,
+                2,
+            ],
+            "decryption_shares": [],
+        },
+    ]
+
+    return (
+        configuration,
+        results,
+    )
+
+
+def test_v8_recomputes_complete_scrutiny():
+    """
+    V8 ricostruisce voti, seggi ed eletti.
+    """
+
+    configuration, results = (
+        _v8_test_data()
+    )
+
+    scrutiny = recompute_v8_scrutiny(
+        configuration=configuration,
+        district_results=results,
+    )
+
+    assert scrutiny[
+        "valid_votes"
+    ] == 10
+
+    assert scrutiny[
+        "list_votes"
+    ] == [
+        6,
+        4,
+    ]
+
+    assert sum(
+        scrutiny["list_seats"]
+    ) == 3
+
+    assert len(
+        scrutiny["elected"]
+    ) == 3
+
+
+def test_v8_accepts_matching_published_scrutiny():
+    """
+    V8 accetta lo scrutinio pubblico corretto.
+    """
+
+    configuration, results = (
+        _v8_test_data()
+    )
+
+    published = (
+        recompute_v8_scrutiny(
+            configuration,
+            results,
+        )
+    )
+
+    assert verify_v8_scrutiny(
+        configuration=configuration,
+        district_results=results,
+        published_scrutiny=published,
+    )
+
+
+def test_v8_rejects_modified_list_seats():
+    """
+    V8 rileva una modifica ai seggi di lista.
+    """
+
+    configuration, results = (
+        _v8_test_data()
+    )
+
+    published = (
+        recompute_v8_scrutiny(
+            configuration,
+            results,
+        )
+    )
+
+    published["list_seats"][0] += 1
+
+    assert not verify_v8_scrutiny(
+        configuration=configuration,
+        district_results=results,
+        published_scrutiny=published,
+    )
+
+
+def test_v8_rejects_modified_elected_candidate():
+    """
+    V8 rileva la modifica di un candidato eletto.
+    """
+
+    configuration, results = (
+        _v8_test_data()
+    )
+
+    published = (
+        recompute_v8_scrutiny(
+            configuration,
+            results,
+        )
+    )
+
+    published["elected"][0][
+        "name"
+    ] = "Candidato falso"
+
+    assert not verify_v8_scrutiny(
+        configuration=configuration,
+        district_results=results,
+        published_scrutiny=published,
+    )
+
+
+def test_v8_rejects_modified_clear_votes():
+    """
+    V8 cambia risultato se vengono alterati i voti pubblici.
+    """
+
+    configuration, results = (
+        _v8_test_data()
+    )
+
+    published = (
+        recompute_v8_scrutiny(
+            configuration,
+            results,
+        )
+    )
+
+    results[0]["list_votes"][0] += 1
+
+    assert not verify_v8_scrutiny(
+        configuration=configuration,
+        district_results=results,
+        published_scrutiny=published,
     )

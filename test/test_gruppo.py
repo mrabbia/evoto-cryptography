@@ -18,12 +18,26 @@ import pytest
 from evoto.gruppo import (
     GroupParameters,
     H,
+    DEMO_PARAMS,
     TEST_PARAMS,
     is_subgroup_element,
     mod_inverse,
     mod_pow,
     validate_group_parameters,
 )
+
+
+def test_demo_parameters_are_valid_2048_256_group():
+    """
+    I parametri della demo rispettano dimensioni e proprietà del gruppo.
+    """
+
+    assert DEMO_PARAMS.p.bit_length() == 2048
+    assert DEMO_PARAMS.q.bit_length() == 256
+
+    assert validate_group_parameters(
+        DEMO_PARAMS
+    )
 
 
 def test_group_parameters_are_frozen():
