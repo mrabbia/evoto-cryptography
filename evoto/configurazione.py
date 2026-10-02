@@ -395,5 +395,5 @@ def build_ballot_layout(
         max_preferences=config.rules.max_preferences,
         max_preferences_per_gender=(
             config.rules.max_preferences_per_gender
-    ),
-)
+        ),
+    )
