@@ -1018,6 +1018,7 @@ def test_v3_r4_rule_accepts_three_preferences():
         g=4,
         public_key=530,
         context=744,
+        max_preferences=3,
     )
 
 
@@ -1047,6 +1048,7 @@ def test_v3_r5_rule_accepts_two_preferences_same_gender():
         g=4,
         public_key=530,
         context=744,
+        max_preferences_per_gender=2,
     )
 
 
@@ -1157,3 +1159,125 @@ def test_joint_public_key_rejects_invalid_constant_commitment():
             p=2579,
             q=1289,
         )
+
+
+def test_v3_r4_rule_uses_configured_limit():
+    """
+    R4 usa il limite massimo configurato.
+    """
+
+    ciphertexts = (
+        _encrypt_for_verifier_test(1, 10),
+        _encrypt_for_verifier_test(1, 20),
+        _encrypt_for_verifier_test(0, 30),
+    )
+
+    _, branches = _build_value_set_test_proof(
+        plaintext=2,
+        nonce=60,
+        allowed_values=(0, 1, 2),
+    )
+
+    assert verify_r4_rule(
+        preference_ciphertexts=ciphertexts,
+        branches=branches,
+        p=2579,
+        q=1289,
+        g=4,
+        public_key=530,
+        context=744,
+        max_preferences=2,
+    )
+
+
+def test_v3_r5_rule_uses_configured_limit():
+    """
+    R5 usa il limite per genere configurato.
+    """
+
+    ciphertexts = (
+        _encrypt_for_verifier_test(1, 10),
+        _encrypt_for_verifier_test(0, 20),
+    )
+
+    _, branches = _build_value_set_test_proof(
+        plaintext=1,
+        nonce=30,
+        allowed_values=(0, 1),
+    )
+
+    assert verify_r5_rule(
+        gender_ciphertexts=ciphertexts,
+        branches=branches,
+        p=2579,
+        q=1289,
+        g=4,
+        public_key=530,
+        context=744,
+        max_preferences_per_gender=1,
+    )
+
+
+def test_v3_r4_rule_rejects_negative_limit():
+    """
+    R4 rifiuta un limite negativo.
+    """
+
+    assert not verify_r4_rule(
+        preference_ciphertexts=(
+            _encrypt_for_verifier_test(0, 10),
+        ),
+        branches=(),
+        p=2579,
+        q=1289,
+        g=4,
+        public_key=530,
+        context=744,
+        max_preferences=-1,
+    )
+
+
+def test_v3_r5_rule_rejects_negative_limit():
+    """
+    R5 rifiuta un limite per genere negativo.
+    """
+
+    assert not verify_r5_rule(
+        gender_ciphertexts=(
+            _encrypt_for_verifier_test(0, 10),
+        ),
+        branches=(),
+        p=2579,
+        q=1289,
+        g=4,
+        public_key=530,
+        context=744,
+        max_preferences_per_gender=-1,
+    )
+
+
+def test_hash_rejects_negative_value():
+    """
+    L'hash canonico rifiuta interi negativi.
+    """
+
+    with pytest.raises(ValueError):
+        hash_to_q(
+            1289,
+            -1,
+        )
+
+
+def test_empty_ciphertext_product_gives_identity():
+    """
+    Il prodotto vuoto dei ciphertext produce l'identità.
+    """
+
+    assert multiply_ciphertexts(
+        ciphertexts=(),
+        p=2579,
+        q=1289,
+    ) == (
+        1,
+        1,
+    )

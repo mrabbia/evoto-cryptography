@@ -36,6 +36,7 @@ from evoto.scrutinio import (
 from evoto.urna import (
     BulletinBoard,
     DistrictResult,
+    DistrictTally,
     cast_voter_ballot,
     create_bulletin_board,
     create_voter_roll,
@@ -54,8 +55,9 @@ from evoto.voto import (
 @dataclass(frozen=True)
 class SimulationReport:
     """
-    Tutto ciò che produce un'elezione simulata.
+    Risultato completo di una simulazione.
 
+    tallies contiene i totali cifrati pubblici di ogni circoscrizione.
     results e scrutiny vengono dal percorso cifrato;
     plaintext_results e plaintext_scrutiny dal conteggio in chiaro.
     timings contiene i tempi delle fasi, in secondi.
@@ -66,6 +68,7 @@ class SimulationReport:
     board: BulletinBoard
     board_is_valid: bool
     spoiled_count: int
+    tallies: tuple[DistrictTally, ...]
     results: tuple[DistrictResult, ...]
     plaintext_results: tuple[DistrictResult, ...]
     scrutiny: ScrutinyResult
@@ -187,15 +190,20 @@ def simulate_election(
     """
 
     if list_weights is None:
-        list_weights = tuple(1.0 for _ in config.list_names)
+        list_weights = tuple(
+            1.0
+            for _ in config.list_names
+        )
 
     if len(list_weights) != len(config.list_names):
-        raise ValueError("Serve un peso per ogni lista.")
+        raise ValueError(
+            "Serve un peso per ogni lista."
+        )
 
     rng = random.Random(seed)
     timings: dict[str, float] = {}
 
-    # Fase 1: cerimonia delle chiavi.
+    # Fase 1: cerimonia delle chiavi
     start = time.perf_counter()
 
     ceremony = run_key_ceremony(
@@ -205,29 +213,49 @@ def simulate_election(
         election_id=config.election_id,
     )
 
-    timings["cerimonia"] = time.perf_counter() - start
+    timings["cerimonia"] = (
+        time.perf_counter() - start
+    )
 
     public_key = ceremony.joint_public_key
     context = ceremony.extended_base_hash
 
     layouts = tuple(
-        build_ballot_layout(config, district_index)
-        for district_index in range(len(config.districts))
+        build_ballot_layout(
+            config,
+            district_index,
+        )
+        for district_index in range(
+            len(config.districts)
+        )
     )
 
     voters = {
-        f"elettore-{district_index}-{number:04d}": district_index
-        for district_index in range(len(config.districts))
-        for number in range(voters_per_district)
+        f"elettore-{district_index}-{number:04d}": (
+            district_index
+        )
+        for district_index in range(
+            len(config.districts)
+        )
+        for number in range(
+            voters_per_district
+        )
     }
 
     roll = create_voter_roll(voters)
-    board = create_bulletin_board(context, params)
+    board = create_bulletin_board(
+        context,
+        params,
+    )
 
-    choices: list[list[VoterChoice]] = [[] for _ in config.districts]
+    choices: list[list[VoterChoice]] = [
+        []
+        for _ in config.districts
+    ]
+
     spoiled_count = 0
 
-    # Fasi 2 e 3: voto e bacheca.
+    # Fasi 2 e 3: voto e bacheca
     start = time.perf_counter()
 
     for voter_id, district_index in voters.items():
@@ -244,7 +272,12 @@ def simulate_election(
 
         if rng.random() < spoil_probability:
             challenged = prepare_ballot(
-                layout, district_index, choice, public_key, params, context
+                layout,
+                district_index,
+                choice,
+                public_key,
+                params,
+                context,
             )
 
             board = spoil_ballot(
@@ -261,7 +294,12 @@ def simulate_election(
             spoiled_count += 1
 
         prepared = prepare_ballot(
-            layout, district_index, choice, public_key, params, context
+            layout,
+            district_index,
+            choice,
+            public_key,
+            params,
+            context,
         )
 
         board, roll = cast_voter_ballot(
@@ -276,21 +314,44 @@ def simulate_election(
             params=params,
         )
 
-        choices[district_index].append(choice)
+        choices[district_index].append(
+            choice
+        )
 
-    timings["voto"] = time.perf_counter() - start
+    timings["voto"] = (
+        time.perf_counter() - start
+    )
 
-    # Controllo V4 della catena dei codici.
+    # Controllo V4 della catena dei codici
     start = time.perf_counter()
-    board_is_valid = verify_board_chain(board, params)
-    timings["catena"] = time.perf_counter() - start
 
-    # Fasi 4 e 5: conteggio e decifratura per circoscrizione.
+    board_is_valid = verify_board_chain(
+        board,
+        params,
+    )
+
+    timings["catena"] = (
+        time.perf_counter() - start
+    )
+
+    # Fasi 4 e 5: conteggio e decifratura per circoscrizione
     start = time.perf_counter()
+
+    tallies = tuple(
+        tally_district(
+            board=board,
+            district_index=district_index,
+            layout=layout,
+            params=params,
+        )
+        for district_index, layout in enumerate(
+            layouts
+        )
+    )
 
     results = tuple(
         decrypt_district_tally(
-            tally=tally_district(board, district_index, layout, params),
+            tally=tally,
             secret_shares=ceremony.secret_shares,
             present_guardians=present_guardians,
             records=ceremony.records,
@@ -298,22 +359,41 @@ def simulate_election(
             params=params,
             extended_base_hash=context,
         )
-        for district_index, layout in enumerate(layouts)
+        for tally in tallies
     )
 
-    timings["decifratura"] = time.perf_counter() - start
+    timings["decifratura"] = (
+        time.perf_counter() - start
+    )
 
-    # Fase 6: scrutinio, sul risultato cifrato e su quello in chiaro.
+    # Fase 6: scrutinio sul risultato cifrato
+    # e sul conteggio in chiaro
     start = time.perf_counter()
-    scrutiny = run_scrutiny(config, results)
-    timings["scrutinio"] = time.perf_counter() - start
+
+    scrutiny = run_scrutiny(
+        config,
+        results,
+    )
+
+    timings["scrutinio"] = (
+        time.perf_counter() - start
+    )
 
     plaintext_results = tuple(
-        plaintext_count(layout, district_index, choices[district_index])
-        for district_index, layout in enumerate(layouts)
+        plaintext_count(
+            layout,
+            district_index,
+            choices[district_index],
+        )
+        for district_index, layout in enumerate(
+            layouts
+        )
     )
 
-    plaintext_scrutiny = run_scrutiny(config, plaintext_results)
+    plaintext_scrutiny = run_scrutiny(
+        config,
+        plaintext_results,
+    )
 
     return SimulationReport(
         config=config,
@@ -321,6 +401,7 @@ def simulate_election(
         board=board,
         board_is_valid=board_is_valid,
         spoiled_count=spoiled_count,
+        tallies=tallies,
         results=results,
         plaintext_results=plaintext_results,
         scrutiny=scrutiny,

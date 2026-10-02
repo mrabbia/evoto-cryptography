@@ -277,20 +277,20 @@ def test_rejects_non_positive_seats():
         parse_election_config(data)
 
 
-def test_layout_rejects_limits_not_supported_by_the_ballot():
+def test_layout_uses_configured_preference_limits():
     """
-    scheda.py oggi supporta solo 3 preferenze e 2 per genere:
-    una configurazione diversa viene rifiutata, invece di produrre
-    schede controllate con regole sbagliate.
+    Il layout usa i limiti definiti nella configurazione.
     """
 
     data = copy.deepcopy(small_config_data())
     data["rules"]["max_preferences"] = 2
+    data["rules"]["max_preferences_per_gender"] = 1
 
     config = parse_election_config(data)
+    layout = build_ballot_layout(config, 0)
 
-    with pytest.raises(ValueError):
-        build_ballot_layout(config, 0)
+    assert layout.max_preferences == 2
+    assert layout.max_preferences_per_gender == 1
 
 
 def test_layout_rejects_unknown_district():

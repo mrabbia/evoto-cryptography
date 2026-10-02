@@ -1188,25 +1188,7 @@ push
       ↓
 Pull Request
       ↓
-review dell'altro componente
-      ↓
 merge
-```
-
-Non lavorare direttamente su `main`.
-
-Prima di iniziare un nuovo branch:
-
-```bash
-git switch main
-git pull
-```
-
-Poi:
-
-```bash
-git switch -c <nome-branch>
-```
 
 ---
 
@@ -1451,7 +1433,16 @@ e = identificativo intero dell'elezione
 
 Nei test si usa `e = 1`.
 
-Quando esisterà `config/elezione_esempio.json`, `e` sarà l'hash della configurazione, con una funzione da fissare insieme a `registro.py`.
+Decisione v0.3: `e` coincide con il campo `election_id` della configurazione
+ufficiale dell'elezione (sezione 42).
+
+Di conseguenza:
+
+Q = H(p, q, g, n, k, election_id)
+
+Non viene calcolato un secondo hash della configurazione per ricavare `e`.
+La configurazione completa viene comunque pubblicata nel registro e verificata
+dal verificatore indipendente.
 
 ## Hash esteso Q_bar
 
@@ -1756,8 +1747,8 @@ Tutte le prove sono prove OR (sezione 16) con contesto `Q_bar`:
 | `r1_proofs[k]` | k-esimo cifrato in ordine canonico | `(0, 1)` |
 | `r2_proof` | prodotto dei cifrati delle liste e della scheda bianca | `(1,)` |
 | `r3_proofs[k]` | `lista[metadata[k].list_index] / preferenza[k]` | `(0, 1)` |
-| `r4_proof` | prodotto di tutte le preferenze | `(0, 1, 2, 3)` |
-| `r5_proofs[g]` | prodotto delle preferenze del gruppo di genere `g` | `(0, 1, 2)` |
+| `r4_proof` | prodotto di tutte le preferenze | `(0, ..., max_preferences)` |
+| `r5_proofs[g]` | prodotto delle preferenze del gruppo di genere `g` | `(0, ..., max_preferences_per_gender)` |
 
 I gruppi di genere seguono l'ordine della prima comparsa di ciascun genere nel layout.
 
@@ -1765,9 +1756,17 @@ La randomness di un cifrato derivato è la somma (o la differenza, per R3) dei n
 
 ## Limiti delle preferenze
 
-Oggi il massimo di 3 preferenze (R4) e di 2 per genere (R5) è scritto nel codice, sia in `scheda.py` sia nel verificatore.
+`BallotLayout` contiene i campi pubblici:
 
-Proposta per Persona A: aggiungere a `BallotLayout` i campi `max_preferences` e `max_preferences_per_gender` e usarli per costruire i valori ammessi, come chiede la sezione 17. Fino ad allora `configurazione.py` rifiuta configurazioni con limiti diversi (sezione 42).
+- `max_preferences`;
+- `max_preferences_per_gender`.
+
+I valori sono ricavati dalla configurazione ufficiale dell'elezione tramite `build_ballot_layout`.
+
+R4 costruisce dinamicamente l'insieme dei valori ammessi:
+
+```text
+(0, ..., max_preferences)
 
 ---
 
@@ -1863,7 +1862,10 @@ L'ordine delle caselle di preferenza di una circoscrizione è: lista dopo lista,
 
 `build_ballot_layout` costruisce il `BallotLayout` della circoscrizione con lo stesso ordine e il genere di ogni candidato.
 
-Finché `scheda.py` ha i limiti fissi (sezione 40), `build_ballot_layout` rifiuta configurazioni con limiti diversi da 3 preferenze e 2 per genere.
+`build_ballot_layout` copia nel `BallotLayout` i valori
+`max_preferences` e `max_preferences_per_gender` definiti nella configurazione.
+
+Le prove R4 e R5 e il verificatore indipendente usano quindi direttamente i limiti configurati, senza valori fissi nel codice.
 
 ## Configurazione di esempio
 
@@ -2114,7 +2116,7 @@ lista degli aventi diritto (VoterRoll)
 
 ---
 
-# 48. Stato del progetto (v0.3)
+# 48. Stato del progetto (v0.4)
 
 ```text
 F0 ambiente e repository                          completata
@@ -2128,6 +2130,9 @@ F7 cabina web, notebook, misure                   da fare (B, con A)
 ```
 
 Esperimento E1: `demo.py` esegue un'elezione simulata sulla configurazione di esempio e confronta il risultato cifrato con un conteggio in chiaro; `test/test_elezione.py` fa lo stesso controllo in piccolo.
+La simulazione conserva inoltre i `DistrictTally` cifrati in
+`SimulationReport.tallies`, così da poterli pubblicare nel registro
+e confrontare in V5 con i tally ricalcolati dalle schede CAST.
 
 ## Prossimi passi
 
@@ -2135,7 +2140,6 @@ Persona A:
 
 - `registro.py` con il formato JSON dei dati della sezione 47;
 - verificatore: V4, V5, V7, V8, parser e orchestrazione con l'esito finale;
-- limiti delle preferenze nel `BallotLayout` (sezione 40);
 - parametri a 2048 bit in `gruppo.py`.
 
 Persona B:
@@ -2153,3 +2157,4 @@ Persona B:
 | 0.1 | Specifica condivisa di F1 |
 | 0.2 | Decisioni per F3: modello a share aggregate (sezione 23), contesti e input di Fiat-Shamir (sezioni 35 e 36), tipi condivisi e chiave pubblica come `int` (sezioni 20 e 27), convenzioni su garanti e controlli (sezioni 18, 19 e 37), nota su T2 (sezione 26), esempio numerico (sezione 38) |
 | 0.3 | Scheda politica F4 (sezione 40), nucleo del verificatore (sezione 41), F5: configurazione (42), voto e sfida di Benaloh (43), bacheca (44), spoglio per circoscrizione (45), scrutinio (46), dati del registro (47), stato del progetto (48); nonce 0 nei cifrati derivati (sezione 16) |
+| 0.4 | Riallineamento pre-F6: `e = election_id`; limiti R4/R5 parametrizzati tramite `BallotLayout` e configurazione; verificatore indipendente allineato ai limiti dinamici e irrobustito sugli input; prodotto vuoto dei ciphertext pari a `(1, 1)`; `SimulationReport` conserva i `DistrictTally`; workflow Git aggiornato con merge autonomo consentito dopo test e rispetto della specifica |

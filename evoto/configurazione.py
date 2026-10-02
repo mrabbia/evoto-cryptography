@@ -24,11 +24,6 @@ from evoto.scheda import (
 )
 
 
-# Limiti che scheda.py supporta oggi: sono scritti nelle regole R4 e R5.
-SUPPORTED_MAX_PREFERENCES = 3
-SUPPORTED_MAX_PREFERENCES_PER_GENDER = 2
-
-
 @dataclass(frozen=True)
 class Candidate:
     """
@@ -378,20 +373,6 @@ def build_ballot_layout(
     configurazione ufficiale e non dal votante.
     """
 
-    rules = config.rules
-
-    # scheda.py oggi usa limiti fissi: rifiutiamo configurazioni diverse
-    # invece di produrre schede verificate con regole sbagliate.
-    if (
-        rules.max_preferences != SUPPORTED_MAX_PREFERENCES
-        or rules.max_preferences_per_gender
-        != SUPPORTED_MAX_PREFERENCES_PER_GENDER
-    ):
-        raise ValueError(
-            "scheda.py supporta per ora al massimo 3 preferenze "
-            "e al massimo 2 per genere."
-        )
-
     if not 0 <= district_index < len(config.districts):
         raise ValueError("L'indice della circoscrizione non è valido.")
 
@@ -411,4 +392,8 @@ def build_ballot_layout(
     return BallotLayout(
         list_count=len(config.list_names),
         preference_metadata=metadata,
-    )
+        max_preferences=config.rules.max_preferences,
+        max_preferences_per_gender=(
+            config.rules.max_preferences_per_gender
+    ),
+)
