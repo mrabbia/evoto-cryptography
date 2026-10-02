@@ -1,0 +1,11 @@
+eVoto - Voto elettronico verificabile
+Copyright 2026 Giuseppe Corasaniti e Matteo Rabbia
+
+Questo prodotto è distribuito con la licenza Apache, versione 2.0:
+vedi il file LICENSE.
+
+Il progetto prende spunto dall'architettura di ElectionGuard
+(https://github.com/Election-Tech-Initiative/electionguard-python),
+distribuito con licenza MIT, usato come riferimento e come banco di
+prova nei test incrociati. ElectionGuard non è una dipendenza della
+libreria.
