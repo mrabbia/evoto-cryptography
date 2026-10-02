@@ -63,6 +63,8 @@ def _build_valid_ballot_case():
             PreferenceMetadata(list_index=1, gender="F"),
             PreferenceMetadata(list_index=1, gender="M"),
         ),
+        max_preferences=3,
+        max_preferences_per_gender=2,
     )
 
     ballot = EncryptedBallot(
@@ -433,6 +435,7 @@ def test_r4_accepts_up_to_three_preferences(
         preference_ciphertexts=preference_ciphertexts,
         preference_plaintexts=preference_plaintexts,
         preference_nonces=preference_nonces,
+        max_preferences=3,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -441,6 +444,7 @@ def test_r4_accepts_up_to_three_preferences(
     assert verify_r4(
         preference_ciphertexts=preference_ciphertexts,
         proof=proof,
+        max_preferences=3,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -473,6 +477,7 @@ def test_r4_rejects_four_preferences():
             preference_ciphertexts=preference_ciphertexts,
             preference_plaintexts=preference_plaintexts,
             preference_nonces=preference_nonces,
+            max_preferences=3,
             public_key=PUBLIC_KEY,
             params=TEST_PARAMS,
             context=CONTEXT,
@@ -506,6 +511,7 @@ def test_r4_accepts_zero_derived_nonce():
         preference_ciphertexts=preference_ciphertexts,
         preference_plaintexts=preference_plaintexts,
         preference_nonces=preference_nonces,
+        max_preferences=3,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -514,6 +520,7 @@ def test_r4_accepts_zero_derived_nonce():
     assert verify_r4(
         preference_ciphertexts=preference_ciphertexts,
         proof=proof,
+        max_preferences=3,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -554,6 +561,7 @@ def test_r5_accepts_up_to_two_preferences_same_gender(
         gender_ciphertexts=gender_ciphertexts,
         gender_plaintexts=gender_plaintexts,
         gender_nonces=gender_nonces,
+        max_preferences_per_gender=2,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -562,6 +570,7 @@ def test_r5_accepts_up_to_two_preferences_same_gender(
     assert verify_r5(
         gender_ciphertexts=gender_ciphertexts,
         proof=proof,
+        max_preferences_per_gender=2,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -594,6 +603,7 @@ def test_r5_rejects_three_preferences_same_gender():
             gender_ciphertexts=gender_ciphertexts,
             gender_plaintexts=gender_plaintexts,
             gender_nonces=gender_nonces,
+            max_preferences_per_gender=2,
             public_key=PUBLIC_KEY,
             params=TEST_PARAMS,
             context=CONTEXT,
@@ -627,6 +637,7 @@ def test_r5_accepts_zero_derived_nonce():
         gender_ciphertexts=gender_ciphertexts,
         gender_plaintexts=gender_plaintexts,
         gender_nonces=gender_nonces,
+        max_preferences_per_gender=2,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -635,6 +646,7 @@ def test_r5_accepts_zero_derived_nonce():
     assert verify_r5(
         gender_ciphertexts=gender_ciphertexts,
         proof=proof,
+        max_preferences_per_gender=2,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -740,6 +752,8 @@ def test_ballot_layout_stores_official_preference_metadata():
     layout = BallotLayout(
         list_count=2,
         preference_metadata=metadata,
+        max_preferences=3,
+        max_preferences_per_gender=2,
     )
 
     assert layout.list_count == 2
@@ -755,6 +769,8 @@ def test_ballot_layout_rejects_invalid_list_index():
     with pytest.raises(ValueError):
         BallotLayout(
             list_count=1,
+            max_preferences=3,
+            max_preferences_per_gender=2,
             preference_metadata=(
                 PreferenceMetadata(
                     list_index=1,
@@ -811,6 +827,8 @@ def test_layout_ballot_and_witness_must_match():
 
     layout = BallotLayout(
         list_count=1,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(
                 list_index=0,
@@ -858,6 +876,8 @@ def test_prove_ballot_r1_r2_generates_valid_proofs():
 
     layout = BallotLayout(
         list_count=2,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=1, gender="M"),
@@ -933,6 +953,8 @@ def test_prove_ballot_r3_generates_valid_proofs():
 
     layout = BallotLayout(
         list_count=2,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(
                 list_index=0,
@@ -1006,6 +1028,8 @@ def test_prove_ballot_r4_generates_valid_proof():
 
     layout = BallotLayout(
         list_count=2,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=0, gender="M"),
@@ -1052,6 +1076,7 @@ def test_prove_ballot_r4_generates_valid_proof():
     assert verify_r4(
         preference_ciphertexts=ballot.preference_ciphertexts,
         proof=proof,
+        max_preferences=3,
         public_key=PUBLIC_KEY,
         params=TEST_PARAMS,
         context=CONTEXT,
@@ -1065,6 +1090,8 @@ def test_prove_ballot_r5_generates_valid_proofs_by_gender():
 
     layout = BallotLayout(
         list_count=2,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=0, gender="M"),
@@ -1132,6 +1159,7 @@ def test_prove_ballot_r5_generates_valid_proofs_by_gender():
         assert verify_r5(
             gender_ciphertexts=gender_ciphertexts,
             proof=proof,
+            max_preferences_per_gender=2,
             public_key=PUBLIC_KEY,
             params=TEST_PARAMS,
             context=CONTEXT,
@@ -1146,6 +1174,8 @@ def test_complete_ballot_proofs_are_valid():
 
     layout = BallotLayout(
         list_count=2,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=0, gender="M"),
@@ -1208,6 +1238,8 @@ def test_verify_ballot_rejects_missing_r1_proof():
 
     layout = BallotLayout(
         list_count=1,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(
                 list_index=0,
@@ -1467,6 +1499,8 @@ def test_prove_ballot_rejects_invalid_r2_choice(
 
     layout = BallotLayout(
         list_count=2,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=1, gender="M"),
@@ -1528,6 +1562,8 @@ def test_prove_ballot_rejects_preference_outside_selected_list():
 
     layout = BallotLayout(
         list_count=2,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(
                 list_index=1,
@@ -1580,6 +1616,8 @@ def test_prove_ballot_rejects_four_total_preferences():
 
     layout = BallotLayout(
         list_count=1,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=0, gender="M"),
@@ -1634,6 +1672,8 @@ def test_prove_ballot_rejects_three_preferences_same_gender():
 
     layout = BallotLayout(
         list_count=1,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=0, gender="F"),
@@ -1676,3 +1716,85 @@ def test_prove_ballot_rejects_three_preferences_same_gender():
             params=TEST_PARAMS,
             context=CONTEXT,
         )
+
+
+def test_r4_uses_configured_max_preferences():
+    """
+    R4 usa il limite massimo di preferenze configurato.
+    """
+
+    preference_plaintexts = (1, 1, 0)
+    preference_nonces = (10, 20, 30)
+
+    preference_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            preference_plaintexts,
+            preference_nonces,
+        )
+    )
+
+    proof = prove_r4(
+        preference_ciphertexts=preference_ciphertexts,
+        preference_plaintexts=preference_plaintexts,
+        preference_nonces=preference_nonces,
+        max_preferences=2,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r4(
+        preference_ciphertexts=preference_ciphertexts,
+        proof=proof,
+        max_preferences=2,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+
+def test_r5_uses_configured_max_preferences_per_gender():
+    """
+    R5 usa il limite per genere configurato.
+    """
+
+    gender_plaintexts = (1, 0)
+    gender_nonces = (10, 20)
+
+    gender_ciphertexts = tuple(
+        encrypt(
+            value,
+            PUBLIC_KEY,
+            TEST_PARAMS,
+            nonce=nonce,
+        )
+        for value, nonce in zip(
+            gender_plaintexts,
+            gender_nonces,
+        )
+    )
+
+    proof = prove_r5(
+        gender_ciphertexts=gender_ciphertexts,
+        gender_plaintexts=gender_plaintexts,
+        gender_nonces=gender_nonces,
+        max_preferences_per_gender=1,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )
+
+    assert verify_r5(
+        gender_ciphertexts=gender_ciphertexts,
+        proof=proof,
+        max_preferences_per_gender=1,
+        public_key=PUBLIC_KEY,
+        params=TEST_PARAMS,
+        context=CONTEXT,
+    )

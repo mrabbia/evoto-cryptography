@@ -45,12 +45,15 @@ class BallotLayout:
     """
     Descrive la struttura pubblica della scheda elettorale.
 
-    I metadati derivano dalla configurazione dell'elezione
+    I metadati e i limiti delle preferenze derivano
+    dalla configurazione ufficiale dell'elezione
     e non possono essere scelti dal votante.
     """
 
     list_count: int
     preference_metadata: tuple[PreferenceMetadata, ...]
+    max_preferences: int
+    max_preferences_per_gender: int
 
     def __post_init__(self) -> None:
         """
@@ -60,6 +63,22 @@ class BallotLayout:
         if self.list_count < 1:
             raise ValueError(
                 "La scheda deve contenere almeno una lista."
+            )
+
+        if self.max_preferences < 0:
+            raise ValueError(
+                "Il numero massimo di preferenze non può essere negativo."
+            )
+
+        if self.max_preferences_per_gender < 0:
+            raise ValueError(
+                "Il numero massimo di preferenze per genere non può essere negativo."
+            )
+
+        if self.max_preferences_per_gender > self.max_preferences:
+            raise ValueError(
+                "Il limite per genere non può superare "
+                "il numero massimo di preferenze."
             )
 
         for metadata in self.preference_metadata:
@@ -332,6 +351,7 @@ def _prove_ballot_r4(
         preference_ciphertexts=ballot.preference_ciphertexts,
         preference_plaintexts=witness.preference_plaintexts,
         preference_nonces=witness.preference_nonces,
+        max_preferences=layout.max_preferences,
         public_key=public_key,
         params=params,
         context=context,
@@ -406,6 +426,9 @@ def _prove_ballot_r5(
             gender_ciphertexts=gender_ciphertexts,
             gender_plaintexts=gender_plaintexts,
             gender_nonces=gender_nonces,
+            max_preferences_per_gender=(
+                layout.max_preferences_per_gender
+            ),
             public_key=public_key,
             params=params,
             context=context,
@@ -564,6 +587,7 @@ def verify_ballot(
             ballot.preference_ciphertexts
         ),
         proof=proofs.r4_proof,
+        max_preferences=layout.max_preferences,
         public_key=public_key,
         params=params,
         context=context,
@@ -576,6 +600,9 @@ def verify_ballot(
                 for index in indices
             ),
             proof=proof,
+            max_preferences_per_gender=(
+                layout.max_preferences_per_gender
+            ),
             public_key=public_key,
             params=params,
             context=context,
@@ -806,6 +833,7 @@ def prove_r4(
     preference_ciphertexts: tuple[Ciphertext, ...],
     preference_plaintexts: tuple[int, ...],
     preference_nonces: tuple[int, ...],
+    max_preferences: int,
     public_key: int,
     params: GroupParameters,
     context: int,
@@ -838,7 +866,9 @@ def prove_r4(
         ciphertext=derived_ciphertext,
         plaintext=total_plaintext,
         nonce=derived_nonce,
-        allowed_values=(0, 1, 2, 3),
+        allowed_values=tuple(
+            range(max_preferences + 1)
+        ),
         public_key=public_key,
         params=params,
         context=context,
@@ -847,6 +877,7 @@ def prove_r4(
 
 def verify_r4(
     preference_ciphertexts: tuple[Ciphertext, ...],
+    max_preferences: int,
     proof: ValueSetProof,
     public_key: int,
     params: GroupParameters,
@@ -866,7 +897,9 @@ def verify_r4(
     return verify_value_in_set(
         ciphertext=derived_ciphertext,
         proof=proof,
-        allowed_values=(0, 1, 2, 3),
+        allowed_values=tuple(
+            range(max_preferences + 1)
+        ),
         public_key=public_key,
         params=params,
         context=context,
@@ -877,6 +910,7 @@ def prove_r5(
     gender_ciphertexts: tuple[Ciphertext, ...],
     gender_plaintexts: tuple[int, ...],
     gender_nonces: tuple[int, ...],
+    max_preferences_per_gender: int,
     public_key: int,
     params: GroupParameters,
     context: int,
@@ -909,7 +943,9 @@ def prove_r5(
         ciphertext=derived_ciphertext,
         plaintext=total_plaintext,
         nonce=derived_nonce,
-        allowed_values=(0, 1, 2),
+        allowed_values=tuple(
+            range(max_preferences_per_gender + 1)
+        ),
         public_key=public_key,
         params=params,
         context=context,
@@ -918,6 +954,7 @@ def prove_r5(
 
 def verify_r5(
     gender_ciphertexts: tuple[Ciphertext, ...],
+    max_preferences_per_gender: int,
     proof: ValueSetProof,
     public_key: int,
     params: GroupParameters,
@@ -935,7 +972,9 @@ def verify_r5(
     return verify_value_in_set(
         ciphertext=derived_ciphertext,
         proof=proof,
-        allowed_values=(0, 1, 2),
+        allowed_values=tuple(
+            range(max_preferences_per_gender + 1)
+        ),
         public_key=public_key,
         params=params,
         context=context,

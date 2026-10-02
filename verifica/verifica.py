@@ -12,10 +12,21 @@ import hashlib
 
 def _to_hex(value: int) -> str:
     """
-    Converte un intero nel formato esadecimale canonico.
+    Converte un intero non negativo
+    nel formato esadecimale canonico.
 
     Usa lettere maiuscole e una lunghezza pari.
     """
+
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(
+            "Il valore da serializzare deve essere un intero."
+        )
+
+    if value < 0:
+        raise ValueError(
+            "Il valore da serializzare non può essere negativo."
+        )
 
     encoded = format(value, "X")
 
@@ -185,12 +196,9 @@ def multiply_ciphertexts(
 
     Ogni ciphertext è rappresentato come:
     (alpha, beta).
-    """
 
-    if not ciphertexts:
-        raise ValueError(
-            "È richiesto almeno un ciphertext."
-        )
+    La sequenza vuota produce l'identità (1, 1).
+    """
 
     for alpha, beta in ciphertexts:
         if not is_subgroup_element(
@@ -383,13 +391,20 @@ def verify_r4_rule(
     g: int,
     public_key: int,
     context: int,
+    max_preferences: int,
 ) -> bool:
     """
     Verifica R4.
 
-    La somma delle preferenze deve appartenere
-    a {0, 1, 2, 3}.
+    La somma delle preferenze deve essere compresa
+    tra 0 e il limite massimo configurato.
     """
+
+    if (
+        not isinstance(max_preferences, int)
+        or max_preferences < 0
+    ):
+        return False
 
     try:
         alpha, beta = multiply_ciphertexts(
@@ -408,7 +423,9 @@ def verify_r4_rule(
         context=context,
         alpha=alpha,
         beta=beta,
-        allowed_values=(0, 1, 2, 3),
+        allowed_values=tuple(
+            range(max_preferences + 1)
+        ),
         branches=branches,
     )
 
@@ -427,13 +444,20 @@ def verify_r5_rule(
     g: int,
     public_key: int,
     context: int,
+    max_preferences_per_gender: int,
 ) -> bool:
     """
     Verifica R5 per un singolo genere.
 
-    La somma delle preferenze deve appartenere
-    a {0, 1, 2}.
+    La somma delle preferenze del genere deve essere compresa
+    tra 0 e il limite per genere configurato.
     """
+
+    if (
+        not isinstance(max_preferences_per_gender, int)
+        or max_preferences_per_gender < 0
+    ):
+        return False
 
     try:
         alpha, beta = multiply_ciphertexts(
@@ -452,7 +476,9 @@ def verify_r5_rule(
         context=context,
         alpha=alpha,
         beta=beta,
-        allowed_values=(0, 1, 2),
+        allowed_values=tuple(
+            range(max_preferences_per_gender + 1)
+        ),
         branches=branches,
     )
 

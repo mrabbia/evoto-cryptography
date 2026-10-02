@@ -28,6 +28,8 @@ DISTRICT = 0
 
 LAYOUT = BallotLayout(
     list_count=2,
+    max_preferences=3,
+    max_preferences_per_gender=2,
     preference_metadata=(
         PreferenceMetadata(list_index=0, gender="F"),
         PreferenceMetadata(list_index=0, gender="M"),
@@ -241,6 +243,8 @@ def test_three_preferences_of_the_same_gender_cannot_be_proved():
 
     layout = BallotLayout(
         list_count=1,
+        max_preferences=3,
+        max_preferences_per_gender=2,
         preference_metadata=(
             PreferenceMetadata(list_index=0, gender="F"),
             PreferenceMetadata(list_index=0, gender="F"),

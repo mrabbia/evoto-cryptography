@@ -57,6 +57,8 @@ CONTEXT = CEREMONY.extended_base_hash
 
 LAYOUT = BallotLayout(
     list_count=2,
+    max_preferences=3,
+    max_preferences_per_gender=2,
     preference_metadata=(
         PreferenceMetadata(list_index=0, gender="F"),
         PreferenceMetadata(list_index=0, gender="M"),

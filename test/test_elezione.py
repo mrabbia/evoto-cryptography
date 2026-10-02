@@ -185,3 +185,24 @@ def test_plaintext_count():
     assert result.list_votes[:2] == (1, 1)
     assert result.blank_votes == 1
     assert result.preference_votes[:5] == (1, 1, 0, 0, 1)
+
+
+def test_simulation_preserves_encrypted_tallies():
+    """
+    La simulazione conserva i tally cifrati
+    destinati al registro pubblico.
+    """
+
+    assert len(REPORT.tallies) == len(
+        CONFIG.districts
+    )
+
+    for district_index, tally in enumerate(
+        REPORT.tallies
+    ):
+        assert (
+            tally.district_index
+            == district_index
+        )
+
+        assert tally.ballot_count == 15
