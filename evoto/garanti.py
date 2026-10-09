@@ -10,7 +10,7 @@ Questo modulo contiene:
 - i contesti di hash Q e Q_bar;
 - la simulazione completa della cerimonia.
 
-Segue la specifica condivisa docs/spec_f1.md v0.4,
+Segue la specifica condivisa docs/spec_f1.md,
 in particolare le sezioni 18, 19, 20, 23 e 35.
 
 La chiave segreta dell'elezione non viene mai costruita:
