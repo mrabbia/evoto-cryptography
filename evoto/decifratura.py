@@ -8,7 +8,7 @@ Questo modulo contiene:
 - la combinazione delle share dei garanti presenti;
 - la decifratura del tally.
 
-Segue la specifica condivisa docs/spec_f1.md v0.4,
+Segue la specifica condivisa docs/spec_f1.md,
 in particolare le sezioni 21, 23, 24 e 36.
 
 Non viene mai decifrata una singola scheda: si decifrano soltanto

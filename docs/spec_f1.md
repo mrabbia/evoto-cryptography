@@ -1,6 +1,6 @@
 # eVoto — Specifica tecnica condivisa F1
 
-**Versione:** 0.5  
+**Versione:** 0.6  
 **Progetto:** Voto elettronico verificabile per elezioni politiche  
 **Corso:** Crittografia — LM Sicurezza Informatica, Università degli Studi di Milano  
 **Componenti del gruppo:**
@@ -2116,7 +2116,7 @@ lista degli aventi diritto (VoterRoll)
 
 ---
 
-# 48. Stato del progetto (v0.5)
+# 48. Stato del progetto (v0.6)
 
 ```text
 F0 ambiente e repository                          completata
@@ -2126,7 +2126,7 @@ F3 garanti e decifratura a soglia                 completata (B)
 F4 scheda politica e prove R1-R5                  completata (A)
 F5 configurazione, voto, bacheca, scrutinio, E1   completata (B)
 F6 verificatore indipendente, E3, E4              completata (A)
-F7 cabina web, notebook, misure                   da fare (B, con A)
+F7 cabina web, notebook, misure                   in corso (B, con A): E2 ed E5 completati
 ```
 
 Esperimento E1: `demo.py` esegue un'elezione simulata sulla configurazione di esempio e confronta il risultato cifrato con un conteggio in chiaro; `test/test_elezione.py` esegue lo stesso controllo in forma automatizzata.
@@ -2166,19 +2166,22 @@ L'esperimento E4 è coperto dai test della scheda e del verificatore: configuraz
 
 In `gruppo.py` è inoltre disponibile `DEMO_PARAMS`, un gruppo MODP con `p` da 2048 bit e `q` da 256 bit. L'intero protocollo, dalla simulazione alla verifica indipendente V1-V8 del registro pubblico, è testato end-to-end anche con questi parametri.
 
+Gli esperimenti E2 (garanti assenti) ed E5 (costi di una scheda) sono in `esperimenti/` e sono descritti nella sezione 50.
+
 ## Prossimi passi
 
 Persona A:
 
-- supporto a F7 per l'integrazione del verificatore nella demo;
-- collaborazione alle misure dell'esperimento E5;
+- supporto a F7 per l'integrazione del verificatore nella demo: comando `python -m verifica <registro.json>` che stampi l'esito di V1-V8;
+- collaborazione alle misure dell'esperimento E5: tempi del verificatore indipendente e osservazione sui controlli di appartenenza (sezione 50);
 - preparazione del materiale relativo alla verifica indipendente per tesina e presentazione.
 
 Persona B:
 
 - cabina elettorale e bacheca web (`cabina/`);
-- notebook didattico con l'esempio della sezione 38;
-- esperimenti E2 (garanti assenti) ed E5 (costi).
+- notebook didattico con l'esempio della sezione 38.
+
+Gli esperimenti E2 ed E5 di Persona B sono completati (sezione 50).
 
 ---
 
@@ -2191,3 +2194,103 @@ Persona B:
 | 0.3 | Scheda politica F4 (sezione 40), nucleo del verificatore (sezione 41), F5: configurazione (42), voto e sfida di Benaloh (43), bacheca (44), spoglio per circoscrizione (45), scrutinio (46), dati del registro (47), stato del progetto (48); nonce 0 nei cifrati derivati (sezione 16) |
 | 0.4 | Riallineamento pre-F6: `e = election_id`; limiti R4/R5 parametrizzati tramite `BallotLayout` e configurazione; verificatore indipendente allineato ai limiti dinamici e irrobustito sugli input; prodotto vuoto dei ciphertext pari a `(1, 1)`; `SimulationReport` conserva i `DistrictTally`; workflow Git aggiornato con merge autonomo consentito dopo test e rispetto della specifica |
 | 0.5 | Chiusura F6: registro pubblico JSON completo; parser e verificatore indipendente V1-V8; verifica cast-or-spoil e rilevamento duplicati; test E3 di manomissione ed E4 sui client non validi; T4 completato contro ElectionGuard; parametri demo MODP 2048/256 bit; test end-to-end del registro con `DEMO_PARAMS`; ottimizzazione delle esponenziazioni modulari del verificatore tramite `gmpy2.powmod` |
+| 0.6 | F7 in corso: esperimenti E2 (garanti assenti) ed E5 (costi di una scheda), sezione 50 |
+
+---
+
+# 50. Esperimenti E2 ed E5 (F7)
+
+Moduli: `esperimenti/e2_garanti_assenti.py` ed `esperimenti/e5_costi.py` (Persona B).
+
+Si eseguono dalla radice del repository:
+
+```text
+uv run python -m esperimenti.e2_garanti_assenti
+uv run python -m esperimenti.e5_costi
+```
+
+Gli esperimenti non modificano la libreria e ne usano solo le interfacce pubbliche. Test: `test/test_esperimento_e2.py` e `test/test_esperimento_e5.py`.
+
+## E2 — Garanti assenti
+
+Prima parte: lo stesso risultato con qualunque gruppo di garanti che raggiunga il quorum.
+
+```text
+1. simulate_election con n = 5, k = 3 e garanti presenti {1, 2, 3}
+2. per ogni S ⊆ {1, ..., 5} con |S| >= 3 (16 gruppi):
+     risultati_S = decrypt_district_tally(tally_d, ..., S)   per ogni circoscrizione d
+     scrutinio_S = run_scrutiny(config, risultati_S)
+     confronto con il conteggio in chiaro: totali, seggi ed eletti
+     verify_public_registry sul registro con risultati_S e scrutinio_S
+3. per ogni S con |S| = 2 (10 gruppi): la decifratura deve essere rifiutata
+```
+
+I totali cifrati sono sempre gli stessi: cambiano soltanto le share `M_l` e i coefficienti `λ_l`.
+
+Seconda parte: meno di `k` share non rivelano nulla sul segreto. Nel gruppo didattico si considera il polinomio della cerimonia
+
+```text
+S(x) = a_0 + a_1 x + ... + a_(k-1) x^(k-1) mod q        s = S(0) = a_0
+```
+
+e, date le share aggregate di alcuni garanti, si enumerano tutti i `(a_1, ..., a_(k-1))` in `Z_q^(k-1)`: la prima share fissa `a_0`, e il polinomio è compatibile se passa anche per le altre share note. Con `m < k` share note ogni segreto ha esattamente `q^(k-1-m)` polinomi compatibili; con `m = k` ne resta uno solo.
+
+Con `k = 3` e `q = 1289`:
+
+| Share note | Segreti compatibili | Polinomi per segreto |
+|---|---|---|
+| {1} | 1289 | 1289 |
+| {1, 2} | 1289 | 1 |
+| {1, 2, 3} | 1 | 1 |
+
+Il segreto ottenuto con Lagrange da `k` share soddisfa `g^s = K`; forzando Lagrange con `k - 1` share si ottiene un valore `s'` con `g^(s') ≠ K`.
+
+La proprietà è informativa per Shamir. Con gli impegni di Feldman la chiave `K = g^s` è pubblica, quindi nel sistema completo la segretezza del segreto è computazionale: ricavarlo richiede un logaritmo discreto. L'enumerazione costa `q^(k-1)` passi ed è possibile solo nel gruppo didattico.
+
+## E5 — Costi di una scheda
+
+Scheda con `L` liste, `c` candidati per lista oltre al capolista, `G` generi, al massimo `P` preferenze e `P_g` per genere:
+
+```text
+cifrati   m     = L + 1 + L·c
+prove           = m (R1) + 1 (R2) + L·c (R3) + 1 (R4) + G (R5)
+rami            = 2m + 1 + 2·L·c + (P + 1) + G·(P_g + 1)
+```
+
+Scheda di riferimento della proposta di progetto (`L = 10`, `c = 8`, `G = 2`, `P = 3`, `P_g = 2`): 91 cifrati, 175 prove, `182 + 1 + 160 + 4 + 6 = 353` rami. Le misure contano cifrati, prove e rami sulla scheda vera prodotta da `prepare_ballot`.
+
+Dimensione in byte, con `e` byte per un elemento del gruppo (quelli di `p`) e `s` byte per una sfida o una risposta (quelli di `q`):
+
+```text
+con impegni      = (2m + 2·rami)·e + 2·rami·s
+forma compatta   = 2m·e + 2·rami·s
+```
+
+Il registro pubblica le prove con gli impegni, come ElectionGuard. Nella forma compatta gli impegni non vengono trasmessi, perché si ricalcolano dalle equazioni di verifica a partire da sfida e risposta: è una stima della dimensione, il formato non è implementato.
+
+Tempi: mediana di più esecuzioni di `prepare_ballot` (cifratura e prove) e `verify_ballot` (controllo R1-R5). Le esponenziazioni modulari si contano sostituendo temporaneamente `mod_pow` nei moduli `gruppo`, `elgamal`, `prove`, `garanti` e `decifratura` (`unittest.mock.patch`); quelle con esponente `q` sono controlli di appartenenza al sottogruppo. Il conteggio comprende anche le `g^v` con `v` piccolo (al massimo `P`), di costo trascurabile. Per il confronto con Python puro la stessa sostituzione usa `pow()` al posto di `gmpy2.powmod`.
+
+Il gruppo da 4096 bit è quello standard di ElectionGuard (`q = 2^256 - 189`), definito in `esperimenti/e5_costi.py` solo per le misure.
+
+Proiezione su una circoscrizione di `N` elettori:
+
+```text
+bacheca       = N · dimensione di una scheda
+verifica      = N · tempo di verifica di una scheda          (un core)
+conteggio     = N · m · tempo di una moltiplicazione di cifrati
+decifratura   = m · tempo di decifratura di un totale
+                (k share con prove, loro verifica, Lagrange, BSGS fino a N)
+```
+
+Risultati indicativi sulla scheda di riferimento (macchina Linux a 2 core):
+
+| Configurazione | Dimensione | Cifratura | Verifica |
+|---|---|---|---|
+| 4096 bit, con impegni, Python puro | 477 KB | 27 s | 39 s |
+| 4096 bit, forma compatta, `gmpy2` | 116 KB | 2,8 s | 4,3 s |
+| 2048/256 bit, forma compatta, `gmpy2` | 69 KB | 0,8 s | 1,2 s |
+| 2048/256 bit, con impegni, `gmpy2` | 250 KB | 0,8 s | 1,2 s |
+
+Cifrare la scheda richiede 2129 esponenziazioni, verificarla 2996. Con `N = 1.000.000` e il gruppo da 2048 bit: bacheca di circa 70 GB in forma compatta, circa 320 ore di verifica su un core, circa un'ora di conteggio omomorfico, pochi secondi di decifratura.
+
+Osservazione sui controlli di appartenenza. Dei 2996 controlli della verifica, 1231 sono `x^q = 1`: 706 sugli impegni dei rami, 350 sulle componenti dei cifrati (182 originali e 168 derivati per R2-R5) e 175 sulla chiave `K`, una volta per prova. Il controllo degli impegni è implicato dalle equazioni di verifica: se `g^z = a · alpha^c` vale e `g`, `alpha` stanno nel sottogruppo, anche `a` vi appartiene. Anche i cifrati derivati, prodotti di elementi già controllati, e i controlli ripetuti su `K` sono ridondanti. Basterebbe controllare una volta `K` e le 182 componenti dei cifrati originali, con un risparmio di circa un terzo delle esponenziazioni della verifica. È una possibile ottimizzazione di `prove.py` e del verificatore (Persona A), non implementata.
