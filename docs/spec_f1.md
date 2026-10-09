@@ -2126,7 +2126,7 @@ F3 garanti e decifratura a soglia                 completata (B)
 F4 scheda politica e prove R1-R5                  completata (A)
 F5 configurazione, voto, bacheca, scrutinio, E1   completata (B)
 F6 verificatore indipendente, E3, E4              completata (A)
-F7 cabina web, notebook, misure                   in corso (B, con A): E2 ed E5 completati
+F7 cabina web, notebook, misure                   in corso (B, con A): E2, E5 e notebook completati
 ```
 
 Esperimento E1: `demo.py` esegue un'elezione simulata sulla configurazione di esempio e confronta il risultato cifrato con un conteggio in chiaro; `test/test_elezione.py` esegue lo stesso controllo in forma automatizzata.
@@ -2166,7 +2166,7 @@ L'esperimento E4 è coperto dai test della scheda e del verificatore: configuraz
 
 In `gruppo.py` è inoltre disponibile `DEMO_PARAMS`, un gruppo MODP con `p` da 2048 bit e `q` da 256 bit. L'intero protocollo, dalla simulazione alla verifica indipendente V1-V8 del registro pubblico, è testato end-to-end anche con questi parametri.
 
-Gli esperimenti E2 (garanti assenti) ed E5 (costi di una scheda) sono in `esperimenti/` e sono descritti nella sezione 50.
+Gli esperimenti E2 (garanti assenti) ed E5 (costi di una scheda) sono in `esperimenti/` e sono descritti nella sezione 50. Il notebook didattico è descritto nella sezione 51.
 
 ## Prossimi passi
 
@@ -2178,10 +2178,9 @@ Persona A:
 
 Persona B:
 
-- cabina elettorale e bacheca web (`cabina/`);
-- notebook didattico con l'esempio della sezione 38.
+- cabina elettorale e bacheca web (`cabina/`).
 
-Gli esperimenti E2 ed E5 di Persona B sono completati (sezione 50).
+Gli esperimenti E2 ed E5 (sezione 50) e il notebook didattico (sezione 51) di Persona B sono completati.
 
 ---
 
@@ -2194,7 +2193,7 @@ Gli esperimenti E2 ed E5 di Persona B sono completati (sezione 50).
 | 0.3 | Scheda politica F4 (sezione 40), nucleo del verificatore (sezione 41), F5: configurazione (42), voto e sfida di Benaloh (43), bacheca (44), spoglio per circoscrizione (45), scrutinio (46), dati del registro (47), stato del progetto (48); nonce 0 nei cifrati derivati (sezione 16) |
 | 0.4 | Riallineamento pre-F6: `e = election_id`; limiti R4/R5 parametrizzati tramite `BallotLayout` e configurazione; verificatore indipendente allineato ai limiti dinamici e irrobustito sugli input; prodotto vuoto dei ciphertext pari a `(1, 1)`; `SimulationReport` conserva i `DistrictTally`; workflow Git aggiornato con merge autonomo consentito dopo test e rispetto della specifica |
 | 0.5 | Chiusura F6: registro pubblico JSON completo; parser e verificatore indipendente V1-V8; verifica cast-or-spoil e rilevamento duplicati; test E3 di manomissione ed E4 sui client non validi; T4 completato contro ElectionGuard; parametri demo MODP 2048/256 bit; test end-to-end del registro con `DEMO_PARAMS`; ottimizzazione delle esponenziazioni modulari del verificatore tramite `gmpy2.powmod` |
-| 0.6 | F7 in corso: esperimenti E2 (garanti assenti) ed E5 (costi di una scheda), sezione 50 |
+| 0.6 | F7 in corso: esperimenti E2 (garanti assenti) ed E5 (costi di una scheda), sezione 50; notebook didattico, sezione 51 |
 
 ---
 
@@ -2282,15 +2281,46 @@ decifratura   = m · tempo di decifratura di un totale
                 (k share con prove, loro verifica, Lagrange, BSGS fino a N)
 ```
 
-Risultati indicativi sulla scheda di riferimento (macchina Linux a 2 core):
+Risultati indicativi sulla scheda di riferimento, misurati su un portatile (su un'altra macchina cambiano i tempi, non le dimensioni né il numero di esponenziazioni):
 
 | Configurazione | Dimensione | Cifratura | Verifica |
 |---|---|---|---|
 | 4096 bit, con impegni, Python puro | 477 KB | 27 s | 39 s |
-| 4096 bit, forma compatta, `gmpy2` | 116 KB | 2,8 s | 4,3 s |
-| 2048/256 bit, forma compatta, `gmpy2` | 69 KB | 0,8 s | 1,2 s |
-| 2048/256 bit, con impegni, `gmpy2` | 250 KB | 0,8 s | 1,2 s |
+| 4096 bit, forma compatta, `gmpy2` | 116 KB | 1,5 s | 2,0 s |
+| 2048/256 bit, forma compatta, `gmpy2` | 69 KB | 0,4 s | 0,6 s |
+| 2048/256 bit, con impegni, `gmpy2` | 250 KB | 0,4 s | 0,6 s |
 
-Cifrare la scheda richiede 2129 esponenziazioni, verificarla 2996. Con `N = 1.000.000` e il gruppo da 2048 bit: bacheca di circa 70 GB in forma compatta, circa 320 ore di verifica su un core, circa un'ora di conteggio omomorfico, pochi secondi di decifratura.
+Cifrare la scheda richiede 2129 esponenziazioni, verificarla 2996. Con `N = 1.000.000` e il gruppo da 2048 bit: bacheca di circa 70 GB in forma compatta, circa 165 ore di verifica su un core, circa 45 minuti di conteggio omomorfico, pochi secondi di decifratura. `gmpy2` è da 8 a 20 volte più veloce di `pow()`, a seconda della macchina.
 
 Osservazione sui controlli di appartenenza. Dei 2996 controlli della verifica, 1231 sono `x^q = 1`: 706 sugli impegni dei rami, 350 sulle componenti dei cifrati (182 originali e 168 derivati per R2-R5) e 175 sulla chiave `K`, una volta per prova. Il controllo degli impegni è implicato dalle equazioni di verifica: se `g^z = a · alpha^c` vale e `g`, `alpha` stanno nel sottogruppo, anche `a` vi appartiene. Anche i cifrati derivati, prodotti di elementi già controllati, e i controlli ripetuti su `K` sono ridondanti. Basterebbe controllare una volta `K` e le 182 componenti dei cifrati originali, con un risparmio di circa un terzo delle esponenziazioni della verifica. È una possibile ottimizzazione di `prove.py` e del verificatore (Persona A), non implementata.
+
+---
+
+# 51. Notebook didattico (F7)
+
+File: `notebook/demo_didattica.ipynb` (Persona B). Test: `test/test_notebook.py`.
+
+Il notebook ripercorre il protocollo con il gruppo didattico e i valori della sezione 38. Ogni cella di codice usa la libreria `evoto` e controlla con `assert` i valori della specifica:
+
+| Sezione | Contenuto | Valori controllati |
+|---|---|---|
+| 1 | Gruppo di ordine primo, controllo di appartenenza | `p = 2q + 1`, `g^q = 1` |
+| 2 | Con `g = 2` (ordine pari) il simbolo di Legendre rivela la parità del voto (Mosca 2019); con `g = 4` vale sempre 1 | voti ricostruiti, simboli `{1}` |
+| 3-4 | ElGamal esponenziale con `s = 765` e conteggio omomorfico | `K = 530`, cifrati della sezione 38, `(A, B) = (1196, 154)`, `t = 2` |
+| 5 | Shamir con dealer, `P(x) = 765 + 100x` | share 865, 965, 1065; `λ_1 = 646`, `λ_3 = 644`; `M = 332` per ogni gruppo di garanti |
+| 6 | Cerimonia senza dealer con i polinomi della sezione 38 | impegni, `Q = 889`, Schnorr `(910, 957, 949)`, share `P_i(l)`, `s_l`, `V_l`, `K = 530`, `Q_bar = 744` |
+| 7 | Share di decifratura con Chaum-Pedersen, garante assente, share alterata, una sola share | `M_1 = 60`, prova `(910, 1033, 524, 828)`, `t = 2` |
+| 8 | Prova OR per `Enc(1)` costruita a mano (`u = 7`, ramo simulato con sfida 100 e risposta 200) e accettata da `verify_value_in_set` | sfida `c = c_0 + c_1`; nessuna prova per `Enc(2)` |
+| 9 | Scheda con due liste di due candidati: 7 cifrati, 15 prove; preferenza fuori lista rifiutata da R3; *Italian attack* | `(7, 1, 4, 1, 2)` prove, 93 combinazioni |
+| 10 | Bacheca: scheda sprecata e ricifrata, due schede depositate, catena dei codici, riga alterata, scheda ricopiata | catena valida e poi non valida |
+| 11 | Elezione simulata sulla configurazione di esempio, registro pubblico, verificatore indipendente, manomissione | `overall` vero; V7 e V8 falsi dopo la manomissione |
+
+Le uscite pubblicate vengono da un'esecuzione completa e in ordine. I nonce delle cifrature sono fissati, quindi rieseguendo il notebook le uscite non cambiano; restano casuali solo le parti delle prove che non vengono stampate.
+
+Jupyter non è una dipendenza del progetto. Il notebook si apre con:
+
+```text
+uv run --with jupyter jupyter lab notebook/demo_didattica.ipynb
+```
+
+La prima cella aggiunge agli import la radice del repository, perché il progetto non è installato come pacchetto. Il test esegue tutte le celle con il solo interprete Python, partendo dalla cartella del notebook come Jupyter, e controlla che le uscite salvate vengano da un'esecuzione completa senza errori.
