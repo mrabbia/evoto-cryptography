@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ config.name }}</h1>
+<p class="lead">
+  {{ config.districts | length }} circoscrizioni, {{ config.list_names | length }} liste,
+  {{ config.seats }} seggi. Ogni casella della scheda viene cifrata e accompagnata
+  da prove a conoscenza zero; si decifrano soltanto i totali.
+</p>
+
+<ol class="phases">
+  <li class="card">
+    <h2>1. Cerimonia delle chiavi</h2>
+    <p>
+      {{ election.guardian_count }} garanti, ne servono {{ election.quorum }} per decifrare.
+      Nessuno conosce la chiave segreta intera.
+    </p>
+    <p class="mono">K = {{ code(election.public_key, short=True) }}…</p>
+  </li>
+
+  <li class="card">
+    <h2>2. Voto</h2>
+    {% if closed %}
+      <p>Il voto è chiuso.</p>
+    {% else %}
+      <p>Vota con un codice dimostrativo: la scheda viene cifrata nel dispositivo.</p>
+      <p><a class="button" href="{{ url_for('access') }}">Vai alla cabina</a></p>
+    {% endif %}
+  </li>
+
+  <li class="card">
+    <h2>3. Bacheca pubblica</h2>
+    <p>
+      {{ counts.cast }} schede depositate, {{ counts.spoiled }} sprecate per controllare il dispositivo.
+      Catena dei codici:
+      {% if board_is_valid %}<span class="ok">valida</span>{% else %}<span class="ko">non valida</span>{% endif %}.
+    </p>
+    <p><a href="{{ url_for('board') }}">Apri la bacheca</a></p>
+  </li>
+
+  <li class="card">
+    <h2>4–5. Conteggio e decifratura</h2>
+    {% if closed %}
+      <p>
+        Totali decifrati con i garanti {{ election.present_guardians | join(', ') }}.
+        <a href="{{ url_for('results') }}">Vedi seggi ed eletti</a>.
+      </p>
+    {% else %}
+      <p>Si moltiplicano i cifrati e i garanti presenti decifrano solo i totali.</p>
+      <p><a href="{{ url_for('closing') }}">Chiudi l'elezione</a></p>
+    {% endif %}
+  </li>
+
+  <li class="card">
+    <h2>6. Verifica</h2>
+    <p>Il verificatore indipendente ricontrolla tutto dal registro pubblico, senza importare la libreria.</p>
+    <p><a href="{{ url_for('verification') }}">Apri il verificatore</a></p>
+  </li>
+</ol>
+{% endblock %}

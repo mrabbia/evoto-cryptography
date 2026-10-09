@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Risultati{% endblock %}
+{% block content %}
+<h1>Risultati</h1>
+
+{% if not closed %}
+  <p class="notice">L'elezione è ancora aperta: i totali sono cifrati. <a href="{{ url_for('closing') }}">Vai allo spoglio</a>.</p>
+{% else %}
+  {% set scrutiny = election.scrutiny %}
+
+  <p class="lead">
+    Totali decifrati dai garanti {{ election.present_guardians | join(', ') }}
+    {%- if absent %}; assenti: {{ absent | join(', ') }}{% endif %}.
+    Ogni share è accompagnata da una prova di Chaum-Pedersen.
+    Nessuna singola scheda è stata decifrata.
+  </p>
+
+  <h2>Voti per circoscrizione</h2>
+  <table class="results">
+    <thead>
+      <tr>
+        <th>Circoscrizione</th>
+        <th>Schede</th>
+        {% for name in config.list_names %}<th>{{ name.split()[-1] }}</th>{% endfor %}
+        <th>Bianche</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for result in election.results %}
+        <tr>
+          <td>{{ config.districts[result.district_index].name }}</td>
+          <td>{{ result.ballot_count }}</td>
+          {% for votes in result.list_votes %}<td>{{ votes }}</td>{% endfor %}
+          <td>{{ result.blank_votes }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Riparto di {{ config.seats }} seggi</h2>
+  <p>Voti validi: {{ scrutiny.valid_votes }}, schede bianche: {{ scrutiny.blank_votes }}.</p>
+  <table class="results">
+    <thead>
+      <tr><th>Lista o coalizione</th><th>Voti</th><th>%</th><th>Seggi</th></tr>
+    </thead>
+    <tbody>
+      {% for competitor in scrutiny.competitors %}
+        <tr class="{{ 'bonus' if loop.index0 == scrutiny.bonus_competitor }}">
+          <td>
+            {{ competitor.name }}
+            {% if loop.index0 == scrutiny.bonus_competitor %}<span class="tag">premio</span>{% endif %}
+          </td>
+          <td>{{ competitor.votes }}</td>
+          <td>{{ '%.1f' | format(100 * competitor.votes / scrutiny.valid_votes) if scrutiny.valid_votes else '-' }}</td>
+          <td>{{ scrutiny.competitor_seats[loop.index0] }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Seggi per lista</h2>
+  <p>
+    {% for name in config.list_names %}
+      {% if scrutiny.list_seats[loop.index0] %}
+        <span class="chip">{{ name }}: {{ scrutiny.list_seats[loop.index0] }}</span>
+      {% endif %}
+    {% endfor %}
+  </p>
+
+  <h2>Eletti</h2>
+  <table class="results">
+    <thead>
+      <tr><th>Circoscrizione</th><th>Lista</th><th>Eletto</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for candidate in scrutiny.elected %}
+        <tr>
+          <td>{{ config.districts[candidate.district_index].name }}</td>
+          <td>{{ config.list_names[candidate.list_index] }}</td>
+          <td>{{ candidate.name }}</td>
+          <td class="muted">
+            {% if candidate.position == 0 %}capolista
+            {% elif candidate.preferences == 1 %}1 preferenza
+            {% else %}{{ candidate.preferences }} preferenze{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p><a class="button" href="{{ url_for('verification') }}">Verifica l'elezione</a></p>
+{% endif %}
+{% endblock %}

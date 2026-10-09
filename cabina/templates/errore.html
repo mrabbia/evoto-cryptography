@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Errore{% endblock %}
+{% block content %}
+<h1>Operazione non riuscita</h1>
+<p class="error">{{ message }}</p>
+{% if back %}<p><a href="{{ back }}">Torna indietro</a></p>{% endif %}
+{% endblock %}

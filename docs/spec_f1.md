@@ -2126,7 +2126,7 @@ F3 garanti e decifratura a soglia                 completata (B)
 F4 scheda politica e prove R1-R5                  completata (A)
 F5 configurazione, voto, bacheca, scrutinio, E1   completata (B)
 F6 verificatore indipendente, E3, E4              completata (A)
-F7 cabina web, notebook, misure                   in corso (B, con A): E2, E5 e notebook completati
+F7 cabina web, notebook, misure                   completata (B); resta il comando del verificatore (A)
 ```
 
 Esperimento E1: `demo.py` esegue un'elezione simulata sulla configurazione di esempio e confronta il risultato cifrato con un conteggio in chiaro; `test/test_elezione.py` esegue lo stesso controllo in forma automatizzata.
@@ -2166,21 +2166,22 @@ L'esperimento E4 è coperto dai test della scheda e del verificatore: configuraz
 
 In `gruppo.py` è inoltre disponibile `DEMO_PARAMS`, un gruppo MODP con `p` da 2048 bit e `q` da 256 bit. L'intero protocollo, dalla simulazione alla verifica indipendente V1-V8 del registro pubblico, è testato end-to-end anche con questi parametri.
 
-Gli esperimenti E2 (garanti assenti) ed E5 (costi di una scheda) sono in `esperimenti/` e sono descritti nella sezione 50. Il notebook didattico è descritto nella sezione 51.
+Gli esperimenti E2 (garanti assenti) ed E5 (costi di una scheda) sono in `esperimenti/` e sono descritti nella sezione 50. Il notebook didattico è descritto nella sezione 51, la cabina elettorale web nella sezione 52.
 
 ## Prossimi passi
 
 Persona A:
 
-- supporto a F7 per l'integrazione del verificatore nella demo: comando `python -m verifica <registro.json>` che stampi l'esito di V1-V8;
+- comando `python -m verifica <registro.json>` che stampi l'esito di V1-V8, da usare nella demo sul file scritto dalla cabina con `--registro` (sezione 52); la cabina usa già `verify_public_registry` nella pagina di verifica;
 - collaborazione alle misure dell'esperimento E5: tempi del verificatore indipendente e osservazione sui controlli di appartenenza (sezione 50);
 - preparazione del materiale relativo alla verifica indipendente per tesina e presentazione.
 
 Persona B:
 
-- cabina elettorale e bacheca web (`cabina/`).
+- tesina (F8): capitoli 4 (protocollo ed esempio a numeri piccoli), 6 (implementazione) e 8 (esperimenti E1-E5);
+- prova della demo all'esame (F9) con la cabina.
 
-Gli esperimenti E2 ed E5 (sezione 50) e il notebook didattico (sezione 51) di Persona B sono completati.
+Gli esperimenti E2 ed E5 (sezione 50), il notebook didattico (sezione 51) e la cabina elettorale web (sezione 52) di Persona B sono completati.
 
 ---
 
@@ -2193,7 +2194,7 @@ Gli esperimenti E2 ed E5 (sezione 50) e il notebook didattico (sezione 51) di Pe
 | 0.3 | Scheda politica F4 (sezione 40), nucleo del verificatore (sezione 41), F5: configurazione (42), voto e sfida di Benaloh (43), bacheca (44), spoglio per circoscrizione (45), scrutinio (46), dati del registro (47), stato del progetto (48); nonce 0 nei cifrati derivati (sezione 16) |
 | 0.4 | Riallineamento pre-F6: `e = election_id`; limiti R4/R5 parametrizzati tramite `BallotLayout` e configurazione; verificatore indipendente allineato ai limiti dinamici e irrobustito sugli input; prodotto vuoto dei ciphertext pari a `(1, 1)`; `SimulationReport` conserva i `DistrictTally`; workflow Git aggiornato con merge autonomo consentito dopo test e rispetto della specifica |
 | 0.5 | Chiusura F6: registro pubblico JSON completo; parser e verificatore indipendente V1-V8; verifica cast-or-spoil e rilevamento duplicati; test E3 di manomissione ed E4 sui client non validi; T4 completato contro ElectionGuard; parametri demo MODP 2048/256 bit; test end-to-end del registro con `DEMO_PARAMS`; ottimizzazione delle esponenziazioni modulari del verificatore tramite `gmpy2.powmod` |
-| 0.6 | F7 in corso: esperimenti E2 (garanti assenti) ed E5 (costi di una scheda), sezione 50; notebook didattico, sezione 51 |
+| 0.6 | F7: esperimenti E2 (garanti assenti) ed E5 (costi di una scheda), sezione 50; notebook didattico, sezione 51; cabina elettorale web con verificatore integrato, sezione 52 |
 
 ---
 
@@ -2324,3 +2325,68 @@ uv run --with jupyter jupyter lab notebook/demo_didattica.ipynb
 ```
 
 La prima cella aggiunge agli import la radice del repository, perché il progetto non è installato come pacchetto. Il test esegue tutte le celle con il solo interprete Python, partendo dalla cartella del notebook come Jupyter, e controlla che le uscite salvate vengano da un'esecuzione completa senza errori.
+
+---
+
+# 52. Cabina elettorale web (F7)
+
+Cartella: `cabina/` (Persona B). Test: `test/test_cabina.py`. Dipendenza: Flask.
+
+```text
+uv run python -m cabina [--gruppo demo|didattico] [--elettori N] [--garanti N] [--quorum K]
+                        [--porta N] [--registro FILE] [--config FILE] [--seme N]
+```
+
+Default: gruppo `DEMO_PARAMS`, 10 elettori simulati per circoscrizione, 5 garanti, quorum 3, porta 8000. Il server di sviluppo di Flask ascolta solo su `127.0.0.1`.
+
+## Struttura
+
+| File | Contenuto |
+|---|---|
+| `sessione.py` | `ElectionSession`: tutta la logica della demo, senza Flask |
+| `app.py` | `create_app(session, registry_path)`: le pagine leggono e mostrano lo stato della sessione |
+| `templates/`, `static/` | HTML, CSS e JavaScript dell'interfaccia |
+| `__main__.py` | opzioni della riga di comando, cerimonia, elettori simulati, avvio del server |
+
+## Stato della sessione
+
+All'avvio `ElectionSession` esegue `run_key_ceremony`, costruisce i layout delle circoscrizioni, crea la bacheca e la lista degli aventi diritto con i codici dimostrativi (`NORD-01` ... `NORD-10`, uno per elettore che vota dal browser). `prefill` aggiunge agli aventi diritto gli elettori simulati, che votano con `random_choice` e lo stesso percorso del browser; circa uno su venti spreca prima una scheda.
+
+Lo stato cambia nel tempo, quindi la sessione è una classe; le strutture di `evoto` restano immutabili e vengono sostituite a ogni passo. Un `RLock` protegge lo stato, perché il server serve più richieste insieme. Le share segrete dei garanti simulati restano in `KeyCeremony.secret_shares` e non vengono mai pubblicate.
+
+| Operazione | Funzioni della libreria | Note |
+|---|---|---|
+| `prepare(voter, choice)` | `prepare_ballot` | la scheda cifrata attende la decisione dell'elettore con un token casuale; se la scelta viola R3-R5 le prove non si costruiscono e il messaggio indica la regola |
+| `cast(token)` | `cast_voter_ballot` | la bacheca verifica le prove; l'elettore riceve il codice di tracciamento |
+| `spoil(token)` | `spoil_ballot`, `verify_spoiled_ballot` | sfida di Benaloh: voti e nonce pubblicati, scheda non contata, l'elettore vota di nuovo |
+| `find_entries(text)` | `BulletinBoard.entries` | ricerca per prime cifre del codice (almeno 4, o tutto il codice nel gruppo didattico) |
+| `close(present)` | `tally_district`, `decrypt_district_tally`, `run_scrutiny` | con meno di `quorum` garanti la chiusura è rifiutata e l'elezione resta aperta |
+| `registry_json(tampering)` | `public_registry_to_json` | solo dopo la chiusura |
+| `verify(tampering)` | `verify_public_registry` | l'esito sul registro originale viene ricordato |
+
+Codici e impronte si mostrano in esadecimale maiuscolo, con la lunghezza di `q`, a gruppi di quattro cifre.
+
+## Registro pubblico
+
+`build_public_registry` legge del resoconto soltanto `config`, `ceremony`, `board`, `tallies`, `results` e `scrutiny`. La cabina passa un `PublicElectionRecord` con questi campi; `registro.py` non viene modificato. L'annotazione `SimulationReport` della funzione potrebbe diventare un protocollo con gli stessi campi (Persona A).
+
+Con `--registro FILE` il registro viene scritto anche su disco alla chiusura; la pagina `/registro.json` lo offre da scaricare, anche nelle versioni manomesse.
+
+## Manomissioni dimostrative (E3 dal vivo)
+
+Le manomissioni modificano solo il JSON pubblicato, mai lo stato dell'elezione:
+
+| Chiave | Modifica | Controlli che falliscono |
+|---|---|---|
+| `voto` | `district_results[0].list_votes[0] + 1` | V7, V8 |
+| `seggi` | un seggio spostato dalla lista con più seggi a quella con meno | V8 |
+| `scheda` | `beta · g` nella prima casella della prima scheda `CAST` | V3, V4, V5 |
+| `codice` | `tracking_code + 1` nella prima riga della bacheca | V4 |
+| `share` | `partial_decryption · g` nella prima share del primo totale | V6, V7 |
+| `garante` | `response + 1` nella prima prova di Schnorr del garante 1 | V2 |
+
+## Interfaccia
+
+Il JavaScript della scheda serve solo alla comodità: una preferenza segna la sua lista, le preferenze di altre liste vengono tolte, i limiti R4 e R5 vengono segnalati. L'opzione «dispositivo scorretto» spegne questi controlli: la scheda viene rifiutata comunque, perché le prove non si costruiscono (E4).
+
+Nella demo il programma locale fa da dispositivo di voto e da bacheca, quindi riceve la scelta in chiaro e la cifra. In un sistema reale la cifratura avverrebbe sul dispositivo dell'elettore e la bacheca vedrebbe solo la scheda cifrata con le prove.

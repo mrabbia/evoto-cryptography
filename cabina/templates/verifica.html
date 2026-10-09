@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Verifica{% endblock %}
+{% block content %}
+<h1>Verificatore indipendente</h1>
+
+{% if not closed %}
+  <p class="notice">Il registro pubblico si può verificare dopo la chiusura dell'elezione.</p>
+{% else %}
+  <p class="lead">
+    Il verificatore legge soltanto il registro pubblico in JSON e rifà tutti i controlli
+    con la libreria standard di Python e <code>gmpy2</code>: non importa <code>evoto</code>,
+    quindi non condivide codice con chi ha prodotto i dati.
+    <a href="{{ url_for('registry') }}">Scarica il registro</a>.
+    {% if registry_path %}Copia sul disco: <code>{{ registry_path }}</code>.{% endif %}
+  </p>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <div class="choices">
+    <form method="post" class="card verify-form">
+      <h2>Registro pubblicato</h2>
+      <p>Controlla il registro così come è stato pubblicato alla chiusura.</p>
+      <input type="hidden" name="manomissione" value="">
+      <button type="submit">Lancia il verificatore</button>
+    </form>
+
+    <form method="post" class="card verify-form">
+      <h2>Registro manomesso</h2>
+      {% for key, item in tamperings.items() %}
+        <label class="tamper">
+          <input type="radio" name="manomissione" value="{{ key }}" {{ 'checked' if loop.first }}>
+          {{ item[0] }}
+        </label>
+      {% endfor %}
+      <button type="submit" class="secondary">Manometti e verifica</button>
+    </form>
+  </div>
+
+  <p id="in-corso" class="notice" hidden>Verifica in corso: con il gruppo da 2048 bit servono alcuni secondi per scheda…</p>
+
+  {% if report %}
+    <div class="verdict {{ 'verdict-ok' if report.overall else 'verdict-ko' }}">
+      {{ 'ELEZIONE VERIFICATA' if report.overall else 'VERIFICA FALLITA' }}
+    </div>
+    <p class="muted">
+      {% if report.tampering %}
+        Registro manomesso: {{ tamperings[report.tampering][0] | lower }}.
+        <a href="{{ url_for('registry', manomissione=report.tampering) }}">Scarica questo registro</a>.
+      {% else %}
+        Registro pubblicato.
+      {% endif %}
+      Tempo del verificatore: {{ '%.1f' | format(report.seconds) }} s.
+    </p>
+
+    <table class="checks">
+      {% for name, description in descriptions.items() %}
+        <tr>
+          <td>{% if report.checks[name] %}<span class="ok">✓</span>{% else %}<span class="ko">✗</span>{% endif %}</td>
+          <td><strong>{{ name }}</strong></td>
+          <td>{{ description }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+{% endif %}
+
+<script>
+  document.querySelectorAll(".verify-form").forEach(function (form) {
+    form.addEventListener("submit", function () {
+      document.getElementById("in-corso").hidden = false;
+      document.querySelectorAll(".verify-form button").forEach(function (button) {
+        button.disabled = true;
+      });
+    });
+  });
+</script>
+{% endblock %}

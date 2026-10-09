@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Ricevuta{% endblock %}
+{% block content %}
+<h1>Scheda depositata</h1>
+
+<div class="card">
+  <p>
+    La bacheca ha controllato le prove e ha pubblicato la scheda in posizione
+    {{ entry.sequence }} (circoscrizione {{ district.name }}). Il tuo codice di tracciamento è:
+  </p>
+  <p class="code-big">{{ code(entry.tracking_code) }}</p>
+  <p>
+    Conservalo: potrai ritrovarlo sulla bacheca. Il codice dipende da tutte le schede
+    precedenti, quindi nessuna riga può essere cambiata senza che il codice cambi.
+    Il codice non rivela il voto.
+  </p>
+  <p>
+    <a class="button" href="{{ url_for('board', codice=code(entry.tracking_code, short=True)) }}">Cercalo sulla bacheca</a>
+    <a href="{{ url_for('access') }}">Nuovo elettore</a>
+  </p>
+</div>
+{% endblock %}

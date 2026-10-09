@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ config.name }}{% endblock %} · eVoto</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='stile.css') }}">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-row">
+      <a class="brand" href="{{ url_for('index') }}">eVoto</a>
+      <nav>
+        <a href="{{ url_for('access') }}">Cabina</a>
+        <a href="{{ url_for('board') }}">Bacheca</a>
+        <a href="{{ url_for('closing') }}">Spoglio</a>
+        <a href="{{ url_for('results') }}">Risultati</a>
+        <a href="{{ url_for('verification') }}">Verifica</a>
+      </nav>
+      <span class="badge {{ 'badge-closed' if closed else 'badge-open' }}">
+        {{ 'Elezione chiusa' if closed else 'Voto aperto' }}
+      </span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="wrap foot">
+    Demo didattica: la cabina è solo una vetrina, la sicurezza sta nelle prove.
+    Gruppo con <code>p</code> da {{ election.params.p.bit_length() }} bit
+    {%- if election.params.p.bit_length() < 64 %} (didattico, non sicuro){% endif %}.
+  </footer>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Spoglio{% endblock %}
+{% block content %}
+<h1>Chiusura e spoglio</h1>
+
+<p class="lead">
+  Per ogni circoscrizione le {{ counts.cast }} schede depositate vengono moltiplicate tra loro:
+  il prodotto dei cifrati è il cifrato della somma. I garanti presenti decifrano soltanto
+  i totali, ciascuno con una prova di Chaum-Pedersen; i coefficienti di Lagrange compensano
+  chi è assente.
+</p>
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<form method="post" class="card">
+  <h2>Garanti presenti</h2>
+  <p>Ne servono almeno {{ election.quorum }} su {{ election.guardian_count }}.</p>
+  <p>
+    {% for index in range(1, election.guardian_count + 1) %}
+      <label class="guardian">
+        <input type="checkbox" name="garanti" value="{{ index }}" {{ 'checked' if index in selected }}>
+        Garante {{ index }}
+      </label>
+    {% endfor %}
+  </p>
+  <button type="submit">Chiudi l'elezione e decifra</button>
+</form>
+{% endblock %}
