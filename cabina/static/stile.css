@@ -1,0 +1,174 @@
+/* Stile della cabina elettorale dimostrativa. */
+
+:root {
+  --ink: #1d232b;
+  --muted: #5f6b78;
+  --line: #d9dee4;
+  --paper: #ffffff;
+  --page: #f4f6f8;
+  --accent: #1f5f99;
+  --accent-ink: #ffffff;
+  --ok: #1d7a46;
+  --ok-soft: #e4f4ea;
+  --ko: #b3261e;
+  --ko-soft: #fbe7e6;
+  --note: #8a5a00;
+  --note-soft: #fff4dc;
+  --radius: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--page);
+}
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+a { color: var(--accent); }
+code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+h1 { font-size: 1.8rem; margin: 28px 0 8px; }
+h2 { font-size: 1.15rem; margin: 22px 0 8px; }
+.lead { font-size: 1.05rem; color: var(--muted); max-width: 860px; }
+.muted { color: var(--muted); }
+
+/* Intestazione */
+.top { background: var(--ink); color: #fff; }
+.top-row { display: flex; align-items: center; gap: 24px; min-height: 56px; flex-wrap: wrap; }
+.brand { color: #fff; font-weight: 700; font-size: 1.2rem; text-decoration: none; }
+.top nav { display: flex; gap: 18px; flex: 1; flex-wrap: wrap; }
+.top nav a { color: #dfe6ee; text-decoration: none; }
+.top nav a:hover { color: #fff; text-decoration: underline; }
+.badge { font-size: 0.85rem; padding: 3px 10px; border-radius: 999px; }
+.badge-open { background: var(--ok-soft); color: var(--ok); }
+.badge-closed { background: #e8ebef; color: var(--ink); }
+
+.foot { color: var(--muted); font-size: 0.85rem; padding-top: 32px; padding-bottom: 32px; }
+
+/* Blocchi */
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin: 12px 0;
+}
+
+.phases { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.phases .card { margin: 0; }
+.phases h2 { margin-top: 0; }
+
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.choices .card { display: flex; flex-direction: column; align-items: flex-start; }
+.choices .card button { margin-top: auto; }
+
+.notice, .error, .ok-box { padding: 10px 14px; border-radius: var(--radius); }
+.notice { background: var(--note-soft); color: var(--note); }
+.error { background: var(--ko-soft); color: var(--ko); }
+.ok-box { background: var(--ok-soft); color: var(--ok); }
+.ok { color: var(--ok); font-weight: 600; }
+.ko { color: var(--ko); font-weight: 600; }
+
+/* Moduli */
+button, .button {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  text-decoration: none;
+}
+button.secondary { background: var(--paper); color: var(--accent); }
+button:disabled { opacity: 0.6; cursor: wait; }
+
+input[type="text"], input:not([type]) {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 240px;
+}
+.inline-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+
+.chip {
+  display: inline-block;
+  padding: 2px 10px;
+  margin: 3px 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+/* Scheda */
+.group h2 { border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.list-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px 12px; margin: 0; }
+.list-card legend { font-weight: 600; padding: 0 4px; }
+.list-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(31, 95, 153, 0.15); }
+.symbol {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-weight: 700; margin: 0 4px;
+}
+.head { margin: 4px 0 8px; font-size: 0.95rem; }
+.candidate { display: block; padding: 2px 0; }
+.gender { font-size: 0.75rem; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.blank { display: inline-block; font-weight: 600; margin-top: 8px; }
+.advanced { margin: 16px 0; color: var(--muted); }
+.advanced summary { cursor: pointer; }
+
+.code-big {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  word-break: break-all;
+  background: var(--page);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+}
+
+/* Tabelle */
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+.board tr.spoiled td { color: var(--muted); }
+.board tr.found td { background: var(--ok-soft); }
+.results tr.bonus td { background: var(--note-soft); }
+.tag { font-size: 0.75rem; background: var(--note); color: #fff; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+.checks td:first-child { width: 2em; font-size: 1.2rem; }
+.checks { margin: 12px 0; }
+
+.guardian, .tamper { display: block; margin: 4px 0; }
+.guardian { display: inline-block; margin-right: 18px; }
+
+.verdict {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding: 16px;
+  border-radius: var(--radius);
+  margin: 20px 0 8px;
+}
+.verdict-ok { background: var(--ok-soft); color: var(--ok); }
+.verdict-ko { background: var(--ko-soft); color: var(--ko); }
+
+/* Schermi stretti: il menu va su una riga sua. */
+@media (max-width: 640px) {
+  .top-row { gap: 6px 16px; padding-top: 8px; padding-bottom: 8px; }
+  .top nav { order: 3; flex-basis: 100%; gap: 14px; }
+  .badge { margin-left: auto; }
+  h1 { font-size: 1.5rem; }
+  input:not([type]) { min-width: 0; width: 100%; }
+}

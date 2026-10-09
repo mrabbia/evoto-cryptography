@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Sfida del dispositivo{% endblock %}
+{% block content %}
+<h1>Sfida del dispositivo</h1>
+
+<div class="card">
+  <p>Dai voti e dai valori casuali rivelati risulta che il dispositivo aveva cifrato:</p>
+  <p class="lead"><strong>{{ report.decoded }}</strong></p>
+
+  <table class="checks">
+    <tr>
+      <td>{% if report.matches_choice %}<span class="ok">✓</span>{% else %}<span class="ko">✗</span>{% endif %}</td>
+      <td>La scheda cifrata contiene la scelta che hai fatto</td>
+    </tr>
+    <tr>
+      <td>{% if report.reencrypts %}<span class="ok">✓</span>{% else %}<span class="ko">✗</span>{% endif %}</td>
+      <td>Ricifrando voti e valori casuali si ottiene proprio la scheda pubblicata</td>
+    </tr>
+  </table>
+
+  <p>
+    La scheda è sulla bacheca come <strong>sprecata</strong> (posizione {{ report.entry.sequence }},
+    codice <span class="mono">{{ code(report.entry.tracking_code, short=True) }}…</span>) e non verrà contata.
+    Chiunque può ripetere il controllo, perché i valori rivelati sono pubblici.
+  </p>
+  <p><a class="button" href="{{ url_for('ballot', voter_id=voter_id) }}">Vota di nuovo</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Scheda{% endblock %}
+{% block content %}
+<h1>Circoscrizione {{ district.name }}</h1>
+<p class="lead">
+  Elettore <strong>{{ voter_id }}</strong>. Segna una lista oppure la scheda bianca e, se vuoi,
+  fino a {{ layout.max_preferences }} preferenze per candidati della stessa lista,
+  non più di {{ layout.max_preferences_per_gender }} dello stesso genere.
+  Il capolista è bloccato e non ha preferenza. Una preferenza senza lista vale anche per la lista.
+</p>
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<form method="post" id="scheda"
+      data-max="{{ layout.max_preferences }}"
+      data-max-gender="{{ layout.max_preferences_per_gender }}">
+
+  {% for group in groups %}
+    <section class="group">
+      <h2>{{ group.title or 'Liste non coalizzate' }}</h2>
+      <div class="lists">
+        {% for item in group.lists %}
+          <fieldset class="list-card">
+            <legend>
+              <label>
+                <input type="radio" name="lista" value="{{ item.index }}">
+                <span class="symbol">{{ item.symbol }}</span>
+                {{ item.name }}
+              </label>
+            </legend>
+            <p class="head">Capolista: {{ item.head }} <span class="muted">(bloccato)</span></p>
+            {% for candidate in item.candidates %}
+              <label class="candidate">
+                <input type="checkbox" name="preferenze" value="{{ candidate.box }}"
+                       data-list="{{ item.index }}" data-gender="{{ candidate.gender }}">
+                {{ candidate.name }} <span class="gender">{{ candidate.gender }}</span>
+              </label>
+            {% endfor %}
+          </fieldset>
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+
+  <section class="group">
+    <label class="blank">
+      <input type="radio" name="lista" value="bianca"> Scheda bianca
+    </label>
+  </section>
+
+  <p id="avviso" class="notice" hidden></p>
+
+  <details class="advanced">
+    <summary>Esperimento: dispositivo scorretto</summary>
+    <label>
+      <input type="checkbox" id="scorretto">
+      Disattiva i controlli dell'interfaccia. Si possono segnare preferenze in altre liste o
+      troppe preferenze: il dispositivo non riuscirà a costruire le prove e la scheda non
+      potrà entrare nella bacheca.
+    </label>
+  </details>
+
+  <p><button type="submit">Cifra la scheda</button></p>
+</form>
+
+<script src="{{ url_for('static', filename='cabina.js') }}"></script>
+{% endblock %}

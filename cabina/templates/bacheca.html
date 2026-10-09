@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Bacheca{% endblock %}
+{% block content %}
+<h1>Bacheca pubblica</h1>
+
+<p class="lead">
+  {{ counts.cast }} schede depositate e {{ counts.spoiled }} sprecate.
+  Catena dei codici di tracciamento:
+  {% if board_is_valid %}<span class="ok">valida</span>{% else %}<span class="ko">non valida</span>{% endif %}.
+  Ogni codice è <span class="mono">H(codice precedente, posizione, stato, impronta)</span>.
+</p>
+
+<form method="get" class="inline-form">
+  <label for="codice">Cerca il tuo codice</label>
+  <input id="codice" name="codice" value="{{ search }}" placeholder="prime cifre del codice" autocomplete="off">
+  <button type="submit">Cerca</button>
+</form>
+
+{% if search %}
+  {% if found %}
+    <p class="ok-box">Codice trovato in posizione {{ found | sort | join(', ') }}.</p>
+  {% else %}
+    <p class="error">Nessuna scheda con un codice che inizia con «{{ search }}».</p>
+  {% endif %}
+{% endif %}
+
+<table class="board">
+  <thead>
+    <tr>
+      <th>N.</th>
+      <th>Circoscrizione</th>
+      <th>Stato</th>
+      <th>Impronta</th>
+      <th>Codice di tracciamento</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in entries | reverse %}
+      <tr class="{{ 'found' if entry.sequence in found }} {{ 'spoiled' if entry.state != CAST }}">
+        <td>{{ entry.sequence }}</td>
+        <td>{{ config.districts[entry.district_index].name }}</td>
+        <td>{{ 'depositata' if entry.state == CAST else 'sprecata' }}</td>
+        <td class="mono">{{ code(entry.ballot_hash, short=True) }}…</td>
+        <td class="mono">{{ code(entry.tracking_code, short=True) }}…</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

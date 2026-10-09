@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Scheda cifrata{% endblock %}
+{% block content %}
+<h1>Scheda cifrata</h1>
+
+<p class="lead">
+  Hai scelto: <strong>{{ description }}</strong>
+</p>
+
+<div class="card">
+  <p>
+    Il dispositivo ha cifrato la scheda casella per casella ({{ ciphertexts }} cifrati ElGamal)
+    e ha costruito {{ proofs }} prove a conoscenza zero per le regole R1–R5.
+    Nessuno può leggere la scelta, ma chiunque può controllare che la scheda rispetti le regole.
+  </p>
+  <p>Impronta della scheda:</p>
+  <p class="code-big">{{ code(pending.prepared.ballot_hash) }}</p>
+</div>
+
+<div class="choices">
+  <form method="post" action="{{ url_for('cast', token=pending.token) }}" class="card">
+    <h2>Deposita</h2>
+    <p>La bacheca controlla le prove e ti dà il codice di tracciamento.</p>
+    <button type="submit">Deposita la scheda</button>
+  </form>
+
+  <form method="post" action="{{ url_for('spoil', token=pending.token) }}" class="card">
+    <h2>Controlla il dispositivo</h2>
+    <p>
+      Sfida di Benaloh: il dispositivo rivela i valori casuali usati per cifrare, chiunque
+      ricifra la scheda e controlla che contenga la tua scelta. Questa scheda viene pubblicata
+      come sprecata e non viene contata; poi voti di nuovo.
+    </p>
+    <button type="submit" class="secondary">Sfida il dispositivo</button>
+  </form>
+</div>
+{% endblock %}

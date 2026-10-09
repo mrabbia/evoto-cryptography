@@ -2,7 +2,7 @@
 
 **eVoto** è una libreria Python per sistemi di voto elettronico in cui il voto rimane segreto e il risultato può essere verificato pubblicamente.
 
-Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. Oggi simula un'elezione politica italiana completa: liste, coalizioni, capolista bloccato, preferenze con vincolo di genere, bacheca pubblica, scrutinio con premio di governabilità ed eletti. L'elezione viene esportata in un registro pubblico JSON, che un verificatore indipendente ricontrolla da solo, passo per passo. Gli esperimenti della tesina misurano il comportamento con garanti assenti e i costi di una scheda, e un notebook didattico ripercorre il protocollo con numeri piccoli. Resta da completare la cabina elettorale web.
+Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. Oggi simula un'elezione politica italiana completa: liste, coalizioni, capolista bloccato, preferenze con vincolo di genere, bacheca pubblica, scrutinio con premio di governabilità ed eletti. L'elezione viene esportata in un registro pubblico JSON, che un verificatore indipendente ricontrolla da solo, passo per passo. Gli esperimenti della tesina misurano il comportamento con garanti assenti e i costi di una scheda, un notebook didattico ripercorre il protocollo con numeri piccoli e una cabina elettorale web locale mostra l'intera elezione nel browser.
 
 > [!WARNING]
 > eVoto è un progetto universitario e non è progettato per elezioni reali. I test e gli esempi usano soprattutto un gruppo crittografico didattico di piccole dimensioni; per la demo è disponibile un gruppo da 2048 bit. I principali limiti sono riportati nella sezione [Sicurezza e limiti](#sicurezza-e-limiti).
@@ -14,6 +14,7 @@ Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.co
 - [Installazione](#installazione)
 - [Guida rapida: referendum sì/no](#guida-rapida-referendum-sìno)
 - [Guida rapida: elezione politica](#guida-rapida-elezione-politica)
+- [Cabina elettorale web](#cabina-elettorale-web)
 - [Verificare un'elezione](#verificare-unelezione)
 - [Esperimenti](#esperimenti)
 - [Notebook didattico](#notebook-didattico)
@@ -101,7 +102,7 @@ Lo scrutinio segue una versione semplificata e dichiarata della legge elettorale
 
 ## Stato del progetto
 
-eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando `demo.py`. La cabina elettorale web è ancora in sviluppo.
+eVoto è utilizzabile come **libreria Python**, con la demo da riga di comando `demo.py` e con la cabina elettorale web dimostrativa (`cabina/`).
 
 | Modulo | Contenuto | Stato |
 |---|---|---|
@@ -120,7 +121,7 @@ eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando 
 | `evoto/registro.py` | Registro pubblico dell'elezione in JSON | Completato |
 | `verifica/` | Verificatore indipendente | Completato: controlli V1–V8 |
 | `esperimenti/` | Esperimenti E2 (garanti assenti) ed E5 (costi) | Completato |
-| `cabina/` | Cabina elettorale e bacheca web dimostrative | Da fare |
+| `cabina/` | Cabina elettorale, bacheca, spoglio e verifica nel browser (Flask) | Completato: demo locale |
 | `notebook/` | Notebook didattico con numeri piccoli | Completato: esempio della sezione 38 della specifica, controllato dai test |
 
 ### Roadmap
@@ -139,7 +140,8 @@ eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando 
 - [x] Parametri a 2048 bit per la demo
 - [x] Esperimenti E2 (garanti assenti) ed E5 (costi e tempi per scheda)
 - [x] Notebook didattico con numeri piccoli
-- [ ] Cabina elettorale web e bacheca dimostrativa
+- [x] Cabina elettorale web e bacheca dimostrativa, con il verificatore integrato
+- [ ] Verificatore lanciabile da riga di comando sul file del registro
 
 ## Installazione
 
@@ -149,7 +151,7 @@ eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - [Git](https://git-scm.com/)
 
-L'unica dipendenza di esecuzione è [gmpy2](https://pypi.org/project/gmpy2/). `uv` la installa automaticamente.
+Le dipendenze di esecuzione sono [gmpy2](https://pypi.org/project/gmpy2/), per l'aritmetica modulare, e [Flask](https://flask.palletsprojects.com/), solo per la cabina web. `uv` le installa automaticamente.
 
 ### Installazione
 
@@ -403,6 +405,38 @@ Preferenze A, B: (0, 1, 0, 0, 1, 1, 0, 0)
 
 La scheda sprecata non compare nei totali. Il formato del file di configurazione è descritto nella sezione 42 della [specifica](docs/spec_f1.md).
 
+## Cabina elettorale web
+
+La cabina è una demo locale nel browser che percorre l'intera elezione: voto con lista e preferenze, codice di tracciamento sulla bacheca, chiusura con i garanti presenti, seggi ed eletti, verificatore indipendente e registro manomesso.
+
+```bash
+uv run python -m cabina
+```
+
+Poi si apre <http://127.0.0.1:8000>. All'avvio vengono eseguite la cerimonia delle chiavi (5 garanti, quorum 3) e il voto di 10 elettori simulati per circoscrizione, così la bacheca non parte vuota. Il server ascolta solo sul computer locale.
+
+| Opzione | Significato |
+|---|---|
+| `--gruppo demo` / `--gruppo didattico` | gruppo da 2048 bit (default) oppure gruppo didattico, istantaneo ma non sicuro |
+| `--elettori N` | elettori simulati per circoscrizione (default 10) |
+| `--garanti N`, `--quorum K` | garanti della cerimonia e garanti necessari per decifrare (default 5 e 3) |
+| `--porta N` | porta del server (default 8000) |
+| `--registro FILE` | file in cui scrivere il registro pubblico alla chiusura |
+| `--config FILE`, `--seme N` | configurazione dell'elezione e seme degli elettori simulati |
+
+Con il gruppo da 2048 bit una scheda si cifra e si deposita in circa un secondo. Il verificatore impiega da mezzo secondo a un secondo per scheda, a seconda della macchina: con i 30 elettori simulati di default la verifica dura tra 15 e 30 secondi.
+
+Percorso della demo, in circa cinque minuti:
+
+1. **Cabina.** Si entra con un codice dimostrativo (per esempio `NORD-01`) e si segna una lista con fino a tre preferenze. Una preferenza segna da sola la sua lista; l'interfaccia segnala i limiti R4 ed R5.
+2. **Scheda cifrata.** La pagina mostra l'impronta della scheda: si può depositarla oppure sfidare il dispositivo. La sfida di Benaloh pubblica la scheda come sprecata con i valori casuali, mostra che contiene proprio la scelta fatta e lascia votare di nuovo.
+3. **Ricevuta e bacheca.** Dopo il deposito l'elettore riceve il codice di tracciamento e lo ritrova sulla bacheca, dove la catena dei codici risulta valida.
+4. **Dispositivo scorretto.** Nella scheda, *Esperimento: dispositivo scorretto* spegne i controlli dell'interfaccia: una preferenza in un'altra lista non riesce a ottenere le prove e la scheda non entra nella bacheca (E4).
+5. **Spoglio.** Si scelgono i garanti presenti: con due la decifratura è impossibile, con tre su cinque si ottengono i totali, poi seggi, premio ed eletti (E2).
+6. **Verifica.** *Lancia il verificatore* esegue i controlli V1–V8 sul registro pubblico e mostra «ELEZIONE VERIFICATA». *Manometti e verifica* altera il registro (un voto, un seggio, una casella cifrata, un codice, una share, una prova di un garante) e indica quali controlli falliscono (E3).
+
+La cabina è solo una vetrina: in questa demo il programma locale fa da dispositivo di voto e da bacheca, quindi riceve la scelta in chiaro e la cifra. La validità delle schede non dipende dall'interfaccia ma dalle prove, che la bacheca e il verificatore controllano sempre.
+
 ## Verificare un'elezione
 
 Ogni elezione può essere esportata in un **registro pubblico** in JSON. Il registro contiene solo dati pubblici: configurazione, parametri del gruppo, impegni e prove dei garanti, bacheca completa, totali cifrati, totali in chiaro con le share di decifratura e risultato dello scrutinio. Non contiene mai i segreti dei garanti, la lista degli aventi diritto o i voti in chiaro delle schede depositate.
@@ -569,6 +603,11 @@ evoto-cryptography/
 │   └── elezione_esempio.json   # liste, coalizioni, candidati, soglie, premio
 ├── notebook/
 │   └── demo_didattica.ipynb    # il protocollo a numeri piccoli
+├── cabina/                     # demo web locale (Flask)
+│   ├── sessione.py             # stato dell'elezione dimostrativa, senza Flask
+│   ├── app.py                  # pagine: cabina, bacheca, spoglio, risultati, verifica
+│   ├── templates/, static/     # HTML, CSS e JavaScript dell'interfaccia
+│   └── __main__.py             # avvio con uv run python -m cabina
 ├── test/                       # test unitari, di integrazione e incrociati
 ├── docs/
 │   └── spec_f1.md              # specifica tecnica condivisa
@@ -713,6 +752,7 @@ I test comprendono:
 - un test completo con i parametri a 2048 bit, dalla simulazione al registro fino alla verifica V1–V8;
 - test degli esperimenti E2 ed E5 (`test_esperimento_e2.py`, `test_esperimento_e5.py`), con i casi piccoli calcolati a mano;
 - l'esecuzione di tutte le celle del notebook didattico (`test_notebook.py`);
+- la cabina web (`test_cabina.py`): voto, sfida di Benaloh, dispositivo scorretto, quorum, manomissioni del registro e percorso completo delle pagine, anche con il gruppo da 2048 bit;
 - test incrociati con ElectionGuard per verificare la compatibilità di cifratura, hash, prove 0/1 e totali di un'elezione.
 
 ### Test con ElectionGuard
@@ -751,6 +791,7 @@ eVoto è un progetto didattico e non deve essere considerato pronto per un uso r
 - **Scrutinio semplificato.** Il riparto segue le regole principali ma non tutte quelle della legge vera: per esempio il numero di seggi di ogni circoscrizione non è fissato in anticipo e i pareggi si risolvono con regole semplici e dichiarate.
 - **Schede sprecate.** Una scheda sprecata è pubblica per costruzione: serve solo a controllare il dispositivo e non viene mai contata.
 - **Modello di avversario.** La generazione congiunta della chiave con Feldman considera garanti *honest-but-curious*; un garante attivamente disonesto può influenzare in parte la distribuzione della chiave pubblica.
+- **Cabina web.** È una demo locale con il server di sviluppo di Flask: il programma fa da dispositivo di voto e riceve la scelta in chiaro. In un sistema reale la cifratura avverrebbe sul dispositivo dell'elettore.
 - **Aspetti non implementati.** Restano fuori dallo scope la sicurezza della rete e dell'interfaccia web, l'identificazione reale degli elettori, la resistenza alla coercizione nel voto da remoto e la completa aderenza giuridica del riparto dei seggi.
 - **Minaccia quantistica.** La sicurezza si basa sul problema del logaritmo discreto, che non è resistente a un computer quantistico sufficientemente potente.
 

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Cabina{% endblock %}
+{% block content %}
+<h1>Cabina elettorale</h1>
+
+{% if closed %}
+  <p class="notice">L'elezione è chiusa: non si può più votare.</p>
+{% else %}
+  <p class="lead">
+    Inserisci il tuo codice di elettore. In un sistema reale l'identificazione avverrebbe
+    con SPID o CIE; qui la lista degli aventi diritto è simulata.
+  </p>
+
+  <p class="notice">
+    In questa demo il programma locale fa sia da dispositivo di voto sia da bacheca: la scelta
+    arriva al programma, che la cifra e costruisce le prove. In un sistema reale la cifratura
+    avverrebbe sul dispositivo dell'elettore e la bacheca vedrebbe solo la scheda cifrata.
+  </p>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <form method="post" class="inline-form">
+    <label for="codice">Codice</label>
+    <input id="codice" name="codice" placeholder="NORD-01" autocomplete="off" required>
+    <button type="submit">Entra</button>
+  </form>
+
+  <h2>Codici dimostrativi ancora disponibili</h2>
+  {% for district_index, voter_ids in codes | dictsort %}
+    <p>
+      <strong>{{ config.districts[district_index].name }}:</strong>
+      {% for voter_id in voter_ids %}
+        <a class="chip" href="{{ url_for('ballot', voter_id=voter_id) }}">{{ voter_id }}</a>
+      {% endfor %}
+    </p>
+  {% else %}
+    <p>Tutti i codici dimostrativi hanno già votato.</p>
+  {% endfor %}
+{% endif %}
+{% endblock %}
