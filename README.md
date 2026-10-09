@@ -2,7 +2,7 @@
 
 **eVoto** è una libreria Python per sistemi di voto elettronico in cui il voto rimane segreto e il risultato può essere verificato pubblicamente.
 
-Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. Oggi simula un'elezione politica italiana completa: liste, coalizioni, capolista bloccato, preferenze con vincolo di genere, bacheca pubblica, scrutinio con premio di governabilità ed eletti. L'elezione viene esportata in un registro pubblico JSON, che un verificatore indipendente ricontrolla da solo, passo per passo. Gli esperimenti della tesina misurano il comportamento con garanti assenti e i costi di una scheda. Restano da completare la cabina elettorale web e il notebook didattico.
+Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. Oggi simula un'elezione politica italiana completa: liste, coalizioni, capolista bloccato, preferenze con vincolo di genere, bacheca pubblica, scrutinio con premio di governabilità ed eletti. L'elezione viene esportata in un registro pubblico JSON, che un verificatore indipendente ricontrolla da solo, passo per passo. Gli esperimenti della tesina misurano il comportamento con garanti assenti e i costi di una scheda, e un notebook didattico ripercorre il protocollo con numeri piccoli. Resta da completare la cabina elettorale web.
 
 > [!WARNING]
 > eVoto è un progetto universitario e non è progettato per elezioni reali. I test e gli esempi usano soprattutto un gruppo crittografico didattico di piccole dimensioni; per la demo è disponibile un gruppo da 2048 bit. I principali limiti sono riportati nella sezione [Sicurezza e limiti](#sicurezza-e-limiti).
@@ -16,6 +16,7 @@ Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.co
 - [Guida rapida: elezione politica](#guida-rapida-elezione-politica)
 - [Verificare un'elezione](#verificare-unelezione)
 - [Esperimenti](#esperimenti)
+- [Notebook didattico](#notebook-didattico)
 - [Struttura del repository](#struttura-del-repository)
 - [API principali](#api-principali)
 - [Test](#test)
@@ -120,7 +121,7 @@ eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando 
 | `verifica/` | Verificatore indipendente | Completato: controlli V1–V8 |
 | `esperimenti/` | Esperimenti E2 (garanti assenti) ed E5 (costi) | Completato |
 | `cabina/` | Cabina elettorale e bacheca web dimostrative | Da fare |
-| `notebook/` | Notebook didattico con numeri piccoli | Da fare |
+| `notebook/` | Notebook didattico con numeri piccoli | Completato: esempio della sezione 38 della specifica, controllato dai test |
 
 ### Roadmap
 
@@ -137,8 +138,8 @@ eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando 
 - [x] Test incrociato su un'elezione completa (T4)
 - [x] Parametri a 2048 bit per la demo
 - [x] Esperimenti E2 (garanti assenti) ed E5 (costi e tempi per scheda)
+- [x] Notebook didattico con numeri piccoli
 - [ ] Cabina elettorale web e bacheca dimostrativa
-- [ ] Notebook didattico con numeri piccoli
 
 ## Installazione
 
@@ -507,17 +508,41 @@ uv run python -m esperimenti.e5_costi --python-puro --csv misure_e5.csv
 uv run python -m esperimenti.e5_costi --liste 2,10 --candidati 8 --ripetizioni 1
 ```
 
-Ogni misura cifra e verifica schede vere con `prepare_ballot` e `verify_ballot`; le esponenziazioni modulari vengono contate durante l'esecuzione. La scheda di riferimento ha 10 liste, ciascuna con capolista e 8 candidati: 91 cifrati, 175 prove e 353 rami delle prove OR. Valori indicativi, misurati su una macchina Linux a 2 core:
+Ogni misura cifra e verifica schede vere con `prepare_ballot` e `verify_ballot`; le esponenziazioni modulari vengono contate durante l'esecuzione. La scheda di riferimento ha 10 liste, ciascuna con capolista e 8 candidati: 91 cifrati, 175 prove e 353 rami delle prove OR. Valori indicativi, misurati su un portatile: su un'altra macchina cambiano i tempi, non le dimensioni né il numero di esponenziazioni.
 
 | Configurazione | Dimensione | Cifratura | Verifica |
 |---|---|---|---|
 | `p` da 4096 bit, con gli impegni delle prove, Python puro | 0,48 MB | 27 s | 39 s |
-| `p` da 4096 bit, forma compatta, `gmpy2` | 0,12 MB | 2,8 s | 4,3 s |
-| `p` da 2048 bit e `q` da 256 bit, forma compatta, `gmpy2` | 0,07 MB | 0,8 s | 1,2 s |
+| `p` da 4096 bit, forma compatta, `gmpy2` | 0,12 MB | 1,5 s | 2,0 s |
+| `p` da 2048 bit e `q` da 256 bit, forma compatta, `gmpy2` | 0,07 MB | 0,4 s | 0,6 s |
 
-Nella forma compatta le prove contengono solo sfide e risposte, perché gli impegni si ricalcolano; il nostro registro pubblica anche gli impegni (0,25 MB a 2048 bit). Le dimensioni coincidono con le stime della proposta di progetto, i tempi sono due o tre volte più alti: la verifica esegue circa 3.000 esponenziazioni contro le circa 1.000 della stima, e 1.231 di queste controllano che ogni elemento ricevuto appartenga al sottogruppo (`x^q = 1`). `gmpy2` è circa 8–10 volte più veloce di `pow()`.
+Nella forma compatta le prove contengono solo sfide e risposte, perché gli impegni si ricalcolano; il nostro registro pubblica anche gli impegni (0,25 MB a 2048 bit). Le dimensioni coincidono con le stime della proposta di progetto. La verifica esegue circa 3.000 esponenziazioni, contro le circa 1.000 della stima, e 1.231 di queste controllano che ogni elemento ricevuto appartenga al sottogruppo (`x^q = 1`). `gmpy2` è da 8 a 20 volte più veloce di `pow()`, a seconda della macchina.
 
-Su una circoscrizione di un milione di elettori, con il gruppo da 2048 bit, la bacheca occupa circa 70 GB in forma compatta e la verifica di tutte le schede richiede circa 320 ore su un core. Le schede si verificano in modo indipendente, quindi il lavoro si divide tra più core. Il conteggio omomorfico richiede circa un'ora, la decifratura di tutti i totali pochi secondi: il costo è dominato dalla verifica delle singole schede.
+Su una circoscrizione di un milione di elettori, con il gruppo da 2048 bit, la bacheca occupa circa 70 GB in forma compatta e la verifica di tutte le schede richiede circa 165 ore su un core. Le schede si verificano in modo indipendente, quindi il lavoro si divide tra più core. Il conteggio omomorfico richiede circa 45 minuti, la decifratura di tutti i totali pochi secondi: il costo è dominato dalla verifica delle singole schede.
+
+## Notebook didattico
+
+`notebook/demo_didattica.ipynb` ripercorre il protocollo con il gruppo didattico (`p = 2579`, `q = 1289`, `g = 4`) e l'esempio della sezione 38 della [specifica](docs/spec_f1.md): tre garanti con quorum 2, tre elettori che votano `1, 0, 1`. Ogni valore è calcolato dalla libreria e confrontato con quello della specifica.
+
+| Sezione | Contenuto |
+|---|---|
+| 1–2 | Il gruppo di ordine primo e perché `g = 2` fa trapelare il voto (Mosca 2019) |
+| 3–4 | ElGamal esponenziale e conteggio omomorfico: `(A, B) = (1196, 154)`, `t = 2` |
+| 5 | Shamir con un dealer e coefficienti di Lagrange, con un garante assente |
+| 6 | Cerimonia delle chiavi senza dealer: impegni di Feldman, prove di Schnorr, `K = 530` |
+| 7 | Decifratura a soglia con le prove di Chaum-Pedersen; una share sola non rivela nulla |
+| 8 | Una prova OR costruita a mano e accettata dalla libreria |
+| 9 | Una scheda politica con due liste e le prove R1–R5 |
+| 10 | Bacheca, codici di tracciamento e sfida di Benaloh |
+| 11 | Un'elezione completa verificata dal verificatore indipendente, poi manomessa |
+
+Jupyter non è una dipendenza del progetto: `uv` lo scarica in un ambiente temporaneo.
+
+```bash
+uv run --with jupyter jupyter lab notebook/demo_didattica.ipynb
+```
+
+Su GitHub il notebook si legge già con le uscite. Il test `test/test_notebook.py` ne esegue tutte le celle con il solo interprete Python, quindi ogni modifica alla libreria che cambia un valore dell'esempio fa fallire i test.
 
 ## Struttura del repository
 
@@ -542,6 +567,8 @@ evoto-cryptography/
 │   └── e5_costi.py             # esperimento E5: dimensione e tempi per scheda
 ├── config/
 │   └── elezione_esempio.json   # liste, coalizioni, candidati, soglie, premio
+├── notebook/
+│   └── demo_didattica.ipynb    # il protocollo a numeri piccoli
 ├── test/                       # test unitari, di integrazione e incrociati
 ├── docs/
 │   └── spec_f1.md              # specifica tecnica condivisa
@@ -685,6 +712,7 @@ I test comprendono:
 - test del registro pubblico (`test_registro.py`) e del verificatore indipendente (`test_verifica.py`), comprese le manomissioni mirate dell'esperimento E3 e i client scorretti dell'esperimento E4;
 - un test completo con i parametri a 2048 bit, dalla simulazione al registro fino alla verifica V1–V8;
 - test degli esperimenti E2 ed E5 (`test_esperimento_e2.py`, `test_esperimento_e5.py`), con i casi piccoli calcolati a mano;
+- l'esecuzione di tutte le celle del notebook didattico (`test_notebook.py`);
 - test incrociati con ElectionGuard per verificare la compatibilità di cifratura, hash, prove 0/1 e totali di un'elezione.
 
 ### Test con ElectionGuard

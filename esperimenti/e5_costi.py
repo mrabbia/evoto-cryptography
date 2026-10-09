@@ -28,6 +28,7 @@ import argparse
 from contextlib import ExitStack, contextmanager
 import csv
 from dataclasses import asdict, dataclass
+from pathlib import Path
 import random
 import statistics
 import time
@@ -710,6 +711,37 @@ def project_district(
     )
 
 
+def save_measures_csv(
+    rows: list[BallotMeasure],
+    path: str | Path,
+) -> Path:
+    """
+    Salva le misure delle schede in un file CSV, una riga per misura.
+
+    Le cartelle del percorso vengono create se non esistono, per
+    esempio privato/ nella radice del repository.
+    """
+
+    if not rows:
+        raise ValueError("Non ci sono misure da salvare.")
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "w", newline="", encoding="utf-8") as output:
+        writer = csv.DictWriter(
+            output,
+            fieldnames=list(asdict(rows[0])),
+        )
+
+        writer.writeheader()
+
+        for row in rows:
+            writer.writerow(asdict(row))
+
+    return path
+
+
 def parse_int_list(value: str) -> tuple[int, ...]:
     """
     Legge un elenco di interi separati da virgole, come "2,4,8".
@@ -1051,18 +1083,12 @@ def main() -> None:
         if python_measure is not None:
             rows.append(python_measure)
 
-        with open(arguments.csv, "w", newline="", encoding="utf-8") as output:
-            writer = csv.DictWriter(
-                output,
-                fieldnames=list(asdict(rows[0])),
-            )
+        saved = save_measures_csv(
+            rows,
+            arguments.csv,
+        )
 
-            writer.writeheader()
-
-            for row in rows:
-                writer.writerow(asdict(row))
-
-        print(f"\nMisure salvate in {arguments.csv}")
+        print(f"\nMisure salvate in {saved}")
 
     print()
 

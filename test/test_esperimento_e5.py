@@ -7,6 +7,7 @@ danno 91 cifrati e 175 prove.
 """
 
 import argparse
+import csv
 
 import pytest
 
@@ -25,6 +26,7 @@ from esperimenti.e5_costi import (
     project_district,
     python_pow,
     sample_choice,
+    save_measures_csv,
     synthetic_layout,
 )
 from evoto.garanti import run_key_ceremony
@@ -330,6 +332,37 @@ def test_project_district_in_the_test_group():
 
     with pytest.raises(ValueError):
         project_district(measure=measure, params=TEST_PARAMS, voters=0)
+
+
+def test_save_measures_csv_creates_the_folder(tmp_path):
+    """
+    Il CSV si può salvare in una cartella che non esiste ancora,
+    come privato/ alla prima esecuzione.
+    """
+
+    measure = measure_ballot(
+        layout=synthetic_layout(2, 1),
+        params=TEST_PARAMS,
+        group="didattico",
+        public_key=CEREMONY.joint_public_key,
+        context=CEREMONY.extended_base_hash,
+        repetitions=1,
+    )
+
+    path = save_measures_csv(
+        [measure, measure],
+        tmp_path / "privato" / "misure_e5.csv",
+    )
+
+    with open(path, encoding="utf-8") as saved:
+        rows = list(csv.DictReader(saved))
+
+    assert len(rows) == 2
+    assert rows[0]["group"] == "didattico"
+    assert rows[0]["ciphertexts"] == str(measure.ciphertexts)
+
+    with pytest.raises(ValueError):
+        save_measures_csv([], tmp_path / "vuoto.csv")
 
 
 def test_parse_int_list():
