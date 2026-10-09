@@ -2,7 +2,7 @@
 
 **eVoto** è una libreria Python per sistemi di voto elettronico in cui il voto rimane segreto e il risultato può essere verificato pubblicamente.
 
-Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. Oggi simula un'elezione politica italiana completa: liste, coalizioni, capolista bloccato, preferenze con vincolo di genere, bacheca pubblica, scrutinio con premio di governabilità ed eletti. L'elezione viene esportata in un registro pubblico JSON, che un verificatore indipendente ricontrolla da solo, passo per passo. Restano da completare la cabina elettorale web, il notebook didattico e le misure delle prestazioni.
+Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.com/Election-Tech-Initiative/electionguard-python), ma ne realizza una versione semplificata e didattica. Oggi simula un'elezione politica italiana completa: liste, coalizioni, capolista bloccato, preferenze con vincolo di genere, bacheca pubblica, scrutinio con premio di governabilità ed eletti. L'elezione viene esportata in un registro pubblico JSON, che un verificatore indipendente ricontrolla da solo, passo per passo. Gli esperimenti della tesina misurano il comportamento con garanti assenti e i costi di una scheda. Restano da completare la cabina elettorale web e il notebook didattico.
 
 > [!WARNING]
 > eVoto è un progetto universitario e non è progettato per elezioni reali. I test e gli esempi usano soprattutto un gruppo crittografico didattico di piccole dimensioni; per la demo è disponibile un gruppo da 2048 bit. I principali limiti sono riportati nella sezione [Sicurezza e limiti](#sicurezza-e-limiti).
@@ -15,6 +15,7 @@ Il progetto prende spunto dall'architettura di [ElectionGuard](https://github.co
 - [Guida rapida: referendum sì/no](#guida-rapida-referendum-sìno)
 - [Guida rapida: elezione politica](#guida-rapida-elezione-politica)
 - [Verificare un'elezione](#verificare-unelezione)
+- [Esperimenti](#esperimenti)
 - [Struttura del repository](#struttura-del-repository)
 - [API principali](#api-principali)
 - [Test](#test)
@@ -117,6 +118,7 @@ eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando 
 | `demo.py` | Elezione simulata da riga di comando (esperimento E1) | Completato |
 | `evoto/registro.py` | Registro pubblico dell'elezione in JSON | Completato |
 | `verifica/` | Verificatore indipendente | Completato: controlli V1–V8 |
+| `esperimenti/` | Esperimenti E2 (garanti assenti) ed E5 (costi) | Completato |
 | `cabina/` | Cabina elettorale e bacheca web dimostrative | Da fare |
 | `notebook/` | Notebook didattico con numeri piccoli | Da fare |
 
@@ -134,7 +136,9 @@ eVoto è utilizzabile come **libreria Python** e con la demo da riga di comando 
 - [x] Verificatore indipendente completo (V1–V8), registro manomesso (E3) e client scorretto (E4)
 - [x] Test incrociato su un'elezione completa (T4)
 - [x] Parametri a 2048 bit per la demo
-- [ ] Cabina elettorale web, notebook didattico e misure delle prestazioni
+- [x] Esperimenti E2 (garanti assenti) ed E5 (costi e tempi per scheda)
+- [ ] Cabina elettorale web e bacheca dimostrativa
+- [ ] Notebook didattico con numeri piccoli
 
 ## Installazione
 
@@ -460,6 +464,61 @@ Il voto aggiunto non corrisponde più alla decifratura del totale (V7) e cambia 
 | V7 | Totali in chiaro compatibili con i totali cifrati: `B / M = g^t` |
 | V8 | Scrutinio rifatto da zero: soglie, premio, seggi ed eletti |
 
+## Esperimenti
+
+| Esperimento | Cosa mostra | Dove |
+|---|---|---|
+| E1 | Elezione simulata: voti, premio, seggi ed eletti coincidono con un conteggio in chiaro | `demo.py`, `test/test_elezione.py` |
+| E2 | Garanti assenti: qualunque gruppo di 3 garanti su 5 decifra lo stesso risultato; meno di 3 share non rivelano nulla | `esperimenti/e2_garanti_assenti.py` |
+| E3 | Registro manomesso: il verificatore indica quale controllo fallisce | `test/test_elezione.py`, `test/test_verifica.py` |
+| E4 | Client scorretto: una scheda che viola R3–R5 non ha prove valide | `test/test_scheda.py`, `test/test_verifica.py` |
+| E5 | Costi: dimensione e tempi per scheda al variare di liste e candidati, proiezione su una circoscrizione | `esperimenti/e5_costi.py` |
+
+Gli esperimenti si eseguono dalla radice del repository. Le formule e le scelte di misura sono nella sezione 50 della [specifica](docs/spec_f1.md).
+
+### E2: garanti assenti
+
+```bash
+uv run python -m esperimenti.e2_garanti_assenti
+uv run python -m esperimenti.e2_garanti_assenti --gruppo demo --elettori 10
+```
+
+Si esegue una sola elezione simulata (la stessa di `demo.py`), poi i suoi totali cifrati vengono decifrati con ognuno dei 16 gruppi di almeno 3 garanti su 5. Ogni volta si confronta il risultato con il conteggio in chiaro e si passa il registro al verificatore indipendente. Con 2 soli garanti la decifratura viene rifiutata.
+
+La seconda parte lavora nel gruppo didattico, dove `q = 1289` è abbastanza piccolo da enumerare tutti i polinomi: per ogni possibile segreto conta quanti polinomi passano per le share note.
+
+```text
+16 gruppi su 16 danno lo stesso risultato del conteggio in chiaro.
+Con 2 garanti la decifratura è rifiutata in 10 casi su 10.
+
+  Share note        Segreti compatibili   Polinomi per segreto
+  {1}                1289 su 1289        1289
+  {1, 2}             1289 su 1289        1
+  {1, 2, 3}             1 su 1289        1
+```
+
+Con una o due share tutti i 1289 segreti restano ugualmente possibili; con tre il segreto è determinato e coincide con quello della chiave pubblica (`g^s = K`). Gli impegni di Feldman pubblicano `K = g^s`, quindi nel sistema completo la segretezza diventa computazionale: ricavare `s` richiede un logaritmo discreto.
+
+### E5: costi di una scheda
+
+```bash
+uv run python -m esperimenti.e5_costi
+uv run python -m esperimenti.e5_costi --python-puro --csv misure_e5.csv
+uv run python -m esperimenti.e5_costi --liste 2,10 --candidati 8 --ripetizioni 1
+```
+
+Ogni misura cifra e verifica schede vere con `prepare_ballot` e `verify_ballot`; le esponenziazioni modulari vengono contate durante l'esecuzione. La scheda di riferimento ha 10 liste, ciascuna con capolista e 8 candidati: 91 cifrati, 175 prove e 353 rami delle prove OR. Valori indicativi, misurati su una macchina Linux a 2 core:
+
+| Configurazione | Dimensione | Cifratura | Verifica |
+|---|---|---|---|
+| `p` da 4096 bit, con gli impegni delle prove, Python puro | 0,48 MB | 27 s | 39 s |
+| `p` da 4096 bit, forma compatta, `gmpy2` | 0,12 MB | 2,8 s | 4,3 s |
+| `p` da 2048 bit e `q` da 256 bit, forma compatta, `gmpy2` | 0,07 MB | 0,8 s | 1,2 s |
+
+Nella forma compatta le prove contengono solo sfide e risposte, perché gli impegni si ricalcolano; il nostro registro pubblica anche gli impegni (0,25 MB a 2048 bit). Le dimensioni coincidono con le stime della proposta di progetto, i tempi sono due o tre volte più alti: la verifica esegue circa 3.000 esponenziazioni contro le circa 1.000 della stima, e 1.231 di queste controllano che ogni elemento ricevuto appartenga al sottogruppo (`x^q = 1`). `gmpy2` è circa 8–10 volte più veloce di `pow()`.
+
+Su una circoscrizione di un milione di elettori, con il gruppo da 2048 bit, la bacheca occupa circa 70 GB in forma compatta e la verifica di tutte le schede richiede circa 320 ore su un core. Le schede si verificano in modo indipendente, quindi il lavoro si divide tra più core. Il conteggio omomorfico richiede circa un'ora, la decifratura di tutti i totali pochi secondi: il costo è dominato dalla verifica delle singole schede.
+
 ## Struttura del repository
 
 ```text
@@ -478,6 +537,9 @@ evoto-cryptography/
 │   └── simulazione.py          # elezione simulata (esperimento E1)
 ├── verifica/
 │   └── verifica.py             # verificatore indipendente V1-V8 (non importa evoto)
+├── esperimenti/
+│   ├── e2_garanti_assenti.py   # esperimento E2: garanti assenti
+│   └── e5_costi.py             # esperimento E5: dimensione e tempi per scheda
 ├── config/
 │   └── elezione_esempio.json   # liste, coalizioni, candidati, soglie, premio
 ├── test/                       # test unitari, di integrazione e incrociati
@@ -622,6 +684,7 @@ I test comprendono:
 - test di integrazione di un'elezione politica completa (`test_elezione.py`), confrontata con il conteggio in chiaro;
 - test del registro pubblico (`test_registro.py`) e del verificatore indipendente (`test_verifica.py`), comprese le manomissioni mirate dell'esperimento E3 e i client scorretti dell'esperimento E4;
 - un test completo con i parametri a 2048 bit, dalla simulazione al registro fino alla verifica V1–V8;
+- test degli esperimenti E2 ed E5 (`test_esperimento_e2.py`, `test_esperimento_e5.py`), con i casi piccoli calcolati a mano;
 - test incrociati con ElectionGuard per verificare la compatibilità di cifratura, hash, prove 0/1 e totali di un'elezione.
 
 ### Test con ElectionGuard
@@ -674,7 +737,7 @@ Convenzioni del progetto:
 - ogni funzione crittografica ha test dedicati, compresi casi di manomissione;
 - niente librerie esterne per le primitive che il progetto richiede di implementare.
 
-`main` deve rimanere stabile. Le modifiche vengono sviluppate su branch `feature/...`, `fix/...` o `docs/...` e integrate tramite pull request dopo la revisione dell'altro autore.
+`main` deve rimanere stabile. Le modifiche vengono sviluppate su branch `feature/...`, `fix/...` o `docs/...` e integrate tramite pull request quando i test passano e la specifica è rispettata; le modifiche alle parti condivise vanno comunicate all'altro autore.
 
 ## Riferimenti
 
